@@ -8,7 +8,7 @@ import json
 from . import settings_bp
 from .forms import SystemSettingsForm, UserSettingsForm
 from app import db, worker
-from app.models import Setting
+from app.models import Setting, AppUser
 from app.decorators import super_admin_required
 from app.notifications import send_telegram_message
 
@@ -19,27 +19,38 @@ def system():
     """Trang cài đặt toàn bộ hệ thống cho Super Admin."""
     form = SystemSettingsForm()
 
-    # ### CẬP NHẬT DANH SÁCH CÁC CỘT CÓ THỂ TÙY CHỈNH ###
+    # ### ĐỊNH NGHĨA LẠI HOÀN TOÀN CÁC CỘT CÓ THỂ TÙY CHỈNH ###
+    # type: 'order' - Dữ liệu cấp đơn hàng, sẽ được gộp hàng (rowspan)
+    # type: 'item' - Dữ liệu cấp sản phẩm, mỗi sản phẩm một hàng
     DEFAULT_COLUMNS = [
-        # Các cột mặc định
-        {'key': 'image', 'label': 'Ảnh SP', 'visible': False, 'type': 'image'}, # <<< CỘT MỚI
-        {'key': 'order_created_at', 'label': 'Ngày tạo', 'visible': True, 'type': 'datetime'},
-        {'key': 'store_name', 'label': 'Cửa hàng', 'visible': True, 'type': 'text'},
-        {'key': 'owner_username', 'label': 'Người dùng', 'visible': True, 'type': 'text'}, # <<< CỘT MỚI
-        {'key': 'wc_order_id', 'label': 'Mã ĐH', 'visible': True, 'type': 'text'},
-        {'key': 'customer_name', 'label': 'Khách hàng', 'visible': True, 'type': 'text'},
-        {'key': 'total', 'label': 'Tổng tiền', 'visible': True, 'type': 'currency'},
-        {'key': 'status', 'label': 'Trạng thái', 'visible': True, 'type': 'status'},
-        {'key': 'products', 'label': 'Sản phẩm & Biến thể', 'visible': True, 'type': 'products'},
+        # Các cột thuộc về Đơn hàng (Order Level)
+        {'key': 'order_created_at', 'label': 'Ngày tạo', 'visible': True, 'type': 'order'},
+        {'key': 'store_name', 'label': 'Cửa hàng', 'visible': True, 'type': 'order'},
+        {'key': 'owner_username', 'label': 'Người dùng', 'visible': True, 'type': 'order'},
+        {'key': 'wc_order_id', 'label': 'Mã ĐH', 'visible': True, 'type': 'order'},
+        {'key': 'customer_name', 'label': 'Khách hàng', 'visible': True, 'type': 'order'},
+        {'key': 'billing_phone', 'label': 'SĐT', 'visible': False, 'type': 'order'},
+        {'key': 'billing_email', 'label': 'Email', 'visible': False, 'type': 'order'},
+        {'key': 'total', 'label': 'Tổng tiền ĐH', 'visible': True, 'type': 'order_currency'},
+        {'key': 'shipping_total', 'label': 'Phí ship', 'visible': False, 'type': 'order_currency'},
+        {'key': 'status', 'label': 'Trạng thái ĐH', 'visible': True, 'type': 'order_status'},
+        {'key': 'payment_method_title', 'label': 'Thanh toán', 'visible': False, 'type': 'order'},
+        {'key': 'customer_note', 'label': 'Ghi chú KH', 'visible': False, 'type': 'order_long'},
+        {'key': 'billing_address', 'label': 'Địa chỉ TT', 'visible': False, 'type': 'order_long'},
+        {'key': 'shipping_address', 'label': 'Địa chỉ GH', 'visible': False, 'type': 'order_long'},
         
-        # Các cột chi tiết mới (mặc định ẩn)
-        {'key': 'billing_phone', 'label': 'SĐT', 'visible': False, 'type': 'text'},
-        {'key': 'billing_email', 'label': 'Email', 'visible': False, 'type': 'text'},
-        {'key': 'shipping_total', 'label': 'Phí ship', 'visible': False, 'type': 'currency'},
-        {'key': 'payment_method_title', 'label': 'Thanh toán', 'visible': False, 'type': 'text'},
-        {'key': 'billing_address', 'label': 'Địa chỉ Thanh toán', 'visible': False, 'type': 'text_long'},
-        {'key': 'shipping_address', 'label': 'Địa chỉ Giao hàng', 'visible': False, 'type': 'text_long'},
-        {'key': 'customer_note', 'label': 'Ghi chú KH', 'visible': False, 'type': 'text_long'},
+        # Các cột thuộc về Sản phẩm (Item Level)
+        {'key': 'image', 'label': 'Ảnh SP', 'visible': True, 'type': 'item_image'},
+        {'key': 'product_name', 'label': 'Tên sản phẩm', 'visible': True, 'type': 'item'},
+        {'key': 'sku', 'label': 'SKU', 'visible': True, 'type': 'item'},
+        {'key': 'quantity', 'label': 'SL', 'visible': True, 'type': 'item'},
+        {'key': 'price', 'label': 'Giá SP', 'visible': True, 'type': 'item_currency'},
+        {'key': 'var1', 'label': 'Biến thể 1', 'visible': True, 'type': 'item'},
+        {'key': 'var2', 'label': 'Biến thể 2', 'visible': False, 'type': 'item'},
+        {'key': 'var3', 'label': 'Biến thể 3', 'visible': False, 'type': 'item'},
+        {'key': 'var4', 'label': 'Biến thể 4', 'visible': False, 'type': 'item'},
+        {'key': 'var5', 'label': 'Biến thể 5', 'visible': False, 'type': 'item'},
+        {'key': 'var6', 'label': 'Biến thể 6', 'visible': False, 'type': 'item'},
     ]
     # #######################################################
     
@@ -50,32 +61,23 @@ def system():
             'TELEGRAM_SEND_DELAY_SECONDS': str(form.telegram_send_delay_seconds.data),
             'CHECK_INTERVAL_MINUTES': str(form.check_interval_minutes.data),
             'ORDER_TABLE_COLUMNS': form.order_table_columns.data,
+            'FETCH_PRODUCT_IMAGES': 'True' if form.fetch_product_images.data else 'False',
             'telegram_template_new_order': form.telegram_template_new_order.data,
             'telegram_template_system_test': form.telegram_template_system_test.data,
-            # ### LƯU CÀI ĐẶT MỚI ###
-            'FETCH_PRODUCT_IMAGES': 'True' if form.fetch_product_images.data else 'False'
         }
-
         original_interval_setting = Setting.query.get('CHECK_INTERVAL_MINUTES')
         original_interval = original_interval_setting.value if original_interval_setting else None
-
         for key, value in settings_to_update.items():
             setting = Setting.query.get(key)
-            if setting:
-                setting.value = value
-            else:
-                db.session.add(Setting(key=key, value=value))
-        
+            if setting: setting.value = value
+            else: db.session.add(Setting(key=key, value=value))
         db.session.commit()
-
         if original_interval != str(form.check_interval_minutes.data):
             worker.init_scheduler(current_app._get_current_object())
             flash('Chu kỳ kiểm tra đã được cập nhật và bộ lập lịch đã được khởi động lại.', 'info')
-
         flash('Cài đặt hệ thống đã được lưu thành công!', 'success')
         return redirect(url_for('settings.system'))
 
-    # Xử lý cho GET request
     if request.method == 'GET':
         settings_from_db = {s.key: s.value for s in Setting.query.all()}
         form.telegram_bot_token.data = settings_from_db.get('TELEGRAM_BOT_TOKEN')
@@ -84,10 +86,8 @@ def system():
         form.check_interval_minutes.data = int(settings_from_db.get('CHECK_INTERVAL_MINUTES', 5))
         form.telegram_template_new_order.data = settings_from_db.get('telegram_template_new_order')
         form.telegram_template_system_test.data = settings_from_db.get('telegram_template_system_test')
-        # ### TẢI CÀI ĐẶT MỚI ###
         form.fetch_product_images.data = settings_from_db.get('FETCH_PRODUCT_IMAGES', 'False').lower() == 'true'
 
-    # Xử lý tải hoặc tạo mới cài đặt cột
     order_columns_setting = Setting.query.get('ORDER_TABLE_COLUMNS')
     if not order_columns_setting:
         default_columns_json = json.dumps(DEFAULT_COLUMNS, ensure_ascii=False)
@@ -105,13 +105,11 @@ def system():
         except json.JSONDecodeError:
             order_columns_config = DEFAULT_COLUMNS
 
-    # Xử lý tải hoặc tạo mới cài đặt lấy ảnh
     fetch_images_setting = Setting.query.get('FETCH_PRODUCT_IMAGES')
     if not fetch_images_setting:
         new_setting = Setting(key='FETCH_PRODUCT_IMAGES', value='False')
         db.session.add(new_setting)
         db.session.commit()
-
 
     reg_setting = Setting.query.get('ENABLE_REGISTRATION')
     enable_registration_status = (reg_setting.value.lower() == 'true') if reg_setting else False
@@ -121,7 +119,6 @@ def system():
                            form=form,
                            enable_registration_status=enable_registration_status,
                            order_columns_config=order_columns_config)
-
 
 @settings_bp.route('/system/toggle_registration', methods=['POST'])
 @login_required
@@ -135,7 +132,6 @@ def toggle_registration():
         flash(f'Chức năng đăng ký đã được {"BẬT" if new_value == "True" else "TẮT"}.', 'success')
     return redirect(url_for('settings.system'))
 
-
 @settings_bp.route('/system/test_telegram', methods=['POST'])
 @login_required
 @super_admin_required
@@ -146,7 +142,6 @@ def test_system_telegram():
     except Exception as e:
         flash(f'Lỗi khi gửi tin nhắn Telegram: {e}', 'danger')
     return redirect(url_for('settings.system'))
-
 
 @settings_bp.route('/personal', methods=['GET', 'POST'])
 @login_required
@@ -165,7 +160,6 @@ def personal():
         flash('Cài đặt cá nhân của bạn đã được lưu thành công!', 'success')
         return redirect(url_for('settings.personal'))
     return render_template('settings/user_settings.html', title='Cài đặt Cá nhân', form=form)
-
 
 @settings_bp.route('/personal/test_telegram', methods=['POST'])
 @login_required
