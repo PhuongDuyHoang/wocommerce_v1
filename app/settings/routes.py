@@ -19,8 +19,9 @@ def system():
     """Trang cài đặt toàn bộ hệ thống cho Super Admin."""
     form = SystemSettingsForm()
 
-    # ### PHẦN 1: ĐỊNH NGHĨA CẤU TRÚC CỘT MẶC ĐỊNH ###
+    # ### CẬP NHẬT DANH SÁCH CÁC CỘT CÓ THỂ TÙY CHỈNH ###
     DEFAULT_COLUMNS = [
+        # Các cột mặc định
         {'key': 'order_created_at', 'label': 'Ngày tạo', 'visible': True, 'type': 'datetime'},
         {'key': 'store_name', 'label': 'Cửa hàng', 'visible': True, 'type': 'text'},
         {'key': 'owner_username', 'label': 'Người dùng', 'visible': True, 'type': 'text'},
@@ -28,20 +29,28 @@ def system():
         {'key': 'customer_name', 'label': 'Khách hàng', 'visible': True, 'type': 'text'},
         {'key': 'total', 'label': 'Tổng tiền', 'visible': True, 'type': 'currency'},
         {'key': 'status', 'label': 'Trạng thái', 'visible': True, 'type': 'status'},
+        {'key': 'products', 'label': 'Sản phẩm & Biến thể', 'visible': True, 'type': 'products'},
+        
+        # Các cột chi tiết mới (mặc định ẩn)
+        {'key': 'billing_phone', 'label': 'SĐT', 'visible': False, 'type': 'text'},
+        {'key': 'billing_email', 'label': 'Email', 'visible': False, 'type': 'text'},
+        {'key': 'shipping_total', 'label': 'Phí ship', 'visible': False, 'type': 'currency'},
         {'key': 'payment_method_title', 'label': 'Thanh toán', 'visible': False, 'type': 'text'},
-        {'key': 'products', 'label': 'Sản phẩm', 'visible': True, 'type': 'products'},
+        {'key': 'billing_address', 'label': 'Địa chỉ Thanh toán', 'visible': False, 'type': 'text_long'},
+        {'key': 'shipping_address', 'label': 'Địa chỉ Giao hàng', 'visible': False, 'type': 'text_long'},
+        {'key': 'customer_note', 'label': 'Ghi chú KH', 'visible': False, 'type': 'text_long'},
     ]
+    # #######################################################
     
     if form.validate_on_submit():
-        # ### PHẦN 2: CẬP NHẬT LOGIC LƯU CÀI ĐẶT ###
         settings_to_update = {
             'TELEGRAM_BOT_TOKEN': form.telegram_bot_token.data,
             'TELEGRAM_CHAT_ID': form.telegram_chat_id.data,
             'TELEGRAM_SEND_DELAY_SECONDS': str(form.telegram_send_delay_seconds.data),
             'CHECK_INTERVAL_MINUTES': str(form.check_interval_minutes.data),
+            'ORDER_TABLE_COLUMNS': form.order_table_columns.data,
             'telegram_template_new_order': form.telegram_template_new_order.data,
             'telegram_template_system_test': form.telegram_template_system_test.data,
-            'ORDER_TABLE_COLUMNS': form.order_table_columns.data # Thêm cài đặt mới
         }
 
         original_interval_setting = Setting.query.get('CHECK_INTERVAL_MINUTES')
@@ -63,7 +72,6 @@ def system():
         flash('Cài đặt hệ thống đã được lưu thành công!', 'success')
         return redirect(url_for('settings.system'))
 
-    # ### PHẦN 3: CẬP NHẬT LOGIC TẢI CÀI ĐẶT (CHO GET REQUEST) ###
     if request.method == 'GET':
         settings_from_db = {s.key: s.value for s in Setting.query.all()}
         form.telegram_bot_token.data = settings_from_db.get('TELEGRAM_BOT_TOKEN')
@@ -73,21 +81,22 @@ def system():
         form.telegram_template_new_order.data = settings_from_db.get('telegram_template_new_order')
         form.telegram_template_system_test.data = settings_from_db.get('telegram_template_system_test')
     
-    # Xử lý tải hoặc tạo mới cài đặt cột
     order_columns_setting = Setting.query.get('ORDER_TABLE_COLUMNS')
     if not order_columns_setting:
-        # Nếu chưa có, tạo cài đặt mặc định và lưu vào DB
         default_columns_json = json.dumps(DEFAULT_COLUMNS, ensure_ascii=False)
         new_setting = Setting(key='ORDER_TABLE_COLUMNS', value=default_columns_json)
         db.session.add(new_setting)
         db.session.commit()
         order_columns_config = DEFAULT_COLUMNS
     else:
-        # Nếu có, tải và parse JSON
         try:
             order_columns_config = json.loads(order_columns_setting.value)
+            saved_keys = {col['key'] for col in order_columns_config}
+            for col_default in DEFAULT_COLUMNS:
+                if col_default['key'] not in saved_keys:
+                    order_columns_config.append(col_default)
         except json.JSONDecodeError:
-            order_columns_config = DEFAULT_COLUMNS # Dùng mặc định nếu JSON bị lỗi
+            order_columns_config = DEFAULT_COLUMNS
 
     reg_setting = Setting.query.get('ENABLE_REGISTRATION')
     enable_registration_status = (reg_setting.value.lower() == 'true') if reg_setting else False
@@ -96,7 +105,7 @@ def system():
                            title='Cài đặt Hệ thống', 
                            form=form,
                            enable_registration_status=enable_registration_status,
-                           order_columns_config=order_columns_config) # Gửi cấu hình cột ra template
+                           order_columns_config=order_columns_config)
 
 
 @settings_bp.route('/system/toggle_registration', methods=['POST'])
