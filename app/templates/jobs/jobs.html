@@ -2,24 +2,9 @@
 
 {% block styles %}
 <style>
-    .progress-wrapper {
-        position: relative;
-        height: 25px;
-    }
-    .progress {
-        height: 100%;
-        font-size: 0.9em;
-        background-color: #e9ecef;
-    }
-    .progress-text {
-        position: absolute;
-        width: 100%;
-        text-align: center;
-        line-height: 25px;
-        color: #212529;
-        font-weight: 500;
-        z-index: 2;
-    }
+    .progress-wrapper { position: relative; height: 25px; }
+    .progress { height: 100%; font-size: 0.9em; background-color: #e9ecef; }
+    .progress-text { position: absolute; width: 100%; text-align: center; line-height: 25px; color: #212529; font-weight: 500; z-index: 2; }
     .status-badge { font-size: 0.9em; padding: 0.5em 0.75em; }
     .log-text { font-family: monospace; font-size: 0.85em; color: #6c757d; }
 </style>
@@ -29,6 +14,13 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">{{ title }}</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+        {% if current_user.is_super_admin() or current_user.is_admin() %}
+        <form action="{{ url_for('jobs.delete_finished') }}" method="POST" onsubmit="return confirm('Bạn có chắc muốn xóa tất cả các tác vụ đã hoàn thành, thất bại và đã hủy?')" class="me-2">
+            <button type="submit" class="btn btn-sm btn-danger">
+                <i class="bi bi-trash2-fill"></i> Xóa tác vụ đã kết thúc
+            </button>
+        </form>
+        {% endif %}
         <button id="refresh-btn" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-clockwise"></i> Cập nhật
         </button>
@@ -51,7 +43,7 @@
             </tr>
         </thead>
         <tbody id="jobs-table-body">
-            </tbody>
+        </tbody>
     </table>
 </div>
 {% endblock %}
@@ -86,14 +78,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     tableHtml = `<tr><td colspan="${colspan}" class="text-center text-muted py-4">Không có tác vụ nào.</td></tr>`;
                 } else {
                     tasks.forEach(task => {
-                        const percent = task.total > 0 ? (task.progress / task.total) * 100 : (task.status === 'complete' ? 100 : 0);
-                        const isActionable = task.status === 'running' || task.status === 'queued' || task.status === 'cancelling';
+                        const isActionable = task.status === 'running' || task.status === 'queued'; // Chỉ cho phép hủy khi đang chạy hoặc chờ
                         const isFinished = task.status === 'complete' || task.status === 'failed' || task.status === 'cancelled';
+                        const isStuck = task.status === 'cancelling'; // Tình trạng bị kẹt
                         
-                        if (isActionable) {
+                        if (isActionable || isStuck) {
                             hasActiveJobs = true;
                         }
 
+                        let totalDisplay = task.total > 0 ? task.total : '?';
+                        let percent = 0;
+
+                        if (isFinished) {
+                            totalDisplay = task.progress;
+                            percent = 100;
+                        } else if (task.total > 0) {
+                            percent = (task.progress / task.total) * 100;
+                        }
+                        
                         let progressBarClass = '';
                         if (task.status === 'complete') progressBarClass = 'bg-success';
                         else if (task.status === 'failed') progressBarClass = 'bg-danger';
@@ -103,17 +105,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         tableHtml += `
                             <tr id="job-${task.job_id}">
-                                <td>
-                                    <strong>${task.name}</strong>
-                                    <div class="log-text">${task.log || ''}</div>
-                                </td>
+                                <td><strong>${task.name}</strong><div class="log-text">${task.log || ''}</div></td>
                                 <td>${getStatusBadge(task.status)}</td>
                                 <td>
                                     <div class="progress-wrapper">
-                                        <div class="progress-text">${task.progress} / ?</div>
-                                        <div class="progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100">
-                                            <div class="progress-bar ${progressBarClass}" style="width: ${percent}%"></div>
-                                        </div>
+                                        <div class="progress-text">${task.progress} / ${totalDisplay}</div>
+                                        <div class="progress" role="progressbar"><div class="progress-bar ${progressBarClass}" style="width: ${percent}%"></div></div>
                                     </div>
                                 </td>
                                 <td>${task.start_time}</td>
@@ -126,8 +123,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                     {% if current_user.is_super_admin() or current_user.is_admin() %}
                                     <button class="btn btn-sm btn-danger delete-btn" 
                                             data-job-id="${task.job_id}" 
-                                            ${isFinished ? '' : 'disabled'} 
-                                            title="${isFinished ? 'Xóa tác vụ' : 'Chỉ có thể xóa tác vụ đã kết thúc'}">
+                                            ${(isFinished || isStuck) ? '' : 'disabled'} 
+                                            title="${(isFinished || isStuck) ? 'Xóa tác vụ' : 'Chỉ có thể xóa tác vụ đã kết thúc hoặc bị kẹt'}">
                                         <i class="bi bi-trash-fill"></i>
                                     </button>
                                     {% endif %}
@@ -150,27 +147,23 @@ document.addEventListener('DOMContentLoaded', function() {
     jobsTableBody.addEventListener('click', function(e) {
         const targetButton = e.target.closest('button');
         if (!targetButton) return;
-
         const jobId = targetButton.dataset.jobId;
 
         if (targetButton.classList.contains('cancel-btn')) {
             if (confirm('Bạn có chắc muốn hủy tác vụ này?')) {
-                fetch(`/jobs/cancel/${jobId}`, { method: 'POST' })
-                    .then(() => updateJobsTable());
+                fetch(`/jobs/cancel/${jobId}`, { method: 'POST' }).then(() => updateJobsTable());
             }
         } else if (targetButton.classList.contains('delete-btn')) {
             if (confirm('Bạn có chắc muốn xóa vĩnh viễn tác vụ này?')) {
-                fetch(`/jobs/delete/${jobId}`, { method: 'POST' })
-                    .then(() => updateJobsTable());
+                fetch(`/jobs/delete/${jobId}`, { method: 'POST' }).then(() => updateJobsTable());
             }
         }
     });
     
     refreshBtn.addEventListener('click', updateJobsTable);
 
-    // Bắt đầu cập nhật
     updateJobsTable();
-    intervalId = setInterval(updateJobsTable, 3000); // Cập nhật mỗi 3 giây
+    if (!intervalId) { intervalId = setInterval(updateJobsTable, 3000); }
 });
 </script>
 {% endblock %}

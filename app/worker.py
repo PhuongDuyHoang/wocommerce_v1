@@ -11,7 +11,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from . import db
 from .models import WooCommerceStore, WooCommerceOrder, Setting, BackgroundTask
+# ### SỬA LỖI: THÊM DÒNG IMPORT BỊ THIẾU ###
 from .notifications import send_telegram_message
+# ###########################################
 
 scheduler = BackgroundScheduler(daemon=True)
 executor = ThreadPoolExecutor(max_workers=5)
@@ -65,12 +67,8 @@ def check_single_store(store_id: int):
             print(f"LỖI khi kiểm tra đơn hàng mới cho '{store.name}': {e}")
             db.session.rollback()
 
-# ### SỬA LẠI HÀM ĐỒNG BỘ LỊCH SỬ ###
 def sync_history_for_store(app, store_id: int, job_id: str):
-    """
-    Hàm này giờ nhận vào đối tượng 'app' để tạo context đúng.
-    """
-    with app.app_context(): # Sử dụng context từ app được truyền vào
+    with app.app_context():
         store = WooCommerceStore.query.get(store_id)
         task = BackgroundTask.query.filter_by(job_id=job_id).first()
         if not store or not task: return
@@ -112,6 +110,7 @@ def sync_history_for_store(app, store_id: int, job_id: str):
 
             task.status = 'complete'
             task.log = f"Đồng bộ hoàn tất! Đã thêm {total_synced} đơn hàng mới."
+            task.total = total_synced
             task.end_time = datetime.utcnow()
             db.session.commit()
             print(f"Hoàn tất đồng bộ lịch sử cho '{store.name}'.")
@@ -120,10 +119,10 @@ def sync_history_for_store(app, store_id: int, job_id: str):
             print(f"LỖI khi đồng bộ lịch sử cho '{store.name}': {e}")
             task.status = 'failed'
             task.log = f"Lỗi: {e}"
+            task.total = task.progress
             task.end_time = datetime.utcnow()
             db.session.commit()
             db.session.rollback()
-# ######################################
 
 def check_all_stores_job():
     app = current_app._get_current_object()
