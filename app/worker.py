@@ -8,8 +8,8 @@ from woocommerce import API
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import current_app
 from concurrent.futures import ThreadPoolExecutor
-import html # Thư viện để xử lý mã HTML
-import re   # Thư viện để xử lý biểu thức chính quy (Regular Expression)
+import html
+import re
 
 from . import db
 from .models import WooCommerceStore, WooCommerceOrder, Setting, BackgroundTask, OrderLineItem
@@ -19,47 +19,46 @@ scheduler = BackgroundScheduler(daemon=True)
 executor = ThreadPoolExecutor(max_workers=5)
 
 
-def _extract_order_details(order_data: dict) -> dict:
-    """Hàm phụ trợ để trích xuất và chuẩn hóa toàn bộ chi tiết từ dữ liệu JSON của một đơn hàng."""
+def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bool) -> dict:
+    """
+    Hàm phụ trợ để trích xuất và chuẩn hóa toàn bộ chi tiết từ dữ liệu JSON của một đơn hàng.
+    """
     
     line_items_data = []
     for item in order_data.get('line_items', []):
         variation_values = []
         for meta in item.get('meta_data', []):
             if not meta['key'].startswith('_'):
-                
                 display_value = meta.get('display_value')
-                # ### LOGIC LỌC VÀ LÀM SẠCH BIẾN THỂ ###
-                # 1. Chỉ xử lý nếu display_value là một chuỗi (bỏ qua các đối tượng phức tạp)
                 if isinstance(display_value, str):
-                    # 2. Bỏ qua các chuỗi khuyến mãi phổ biến
-                    if 'OFF on cart total' in display_value:
-                        continue
-                    
-                    # 3. Làm sạch dữ liệu
-                    # Bỏ các thẻ HTML như <strong>
-                    cleaned_value = re.sub(r'<.*?>', '', display_value)
-                    # Chuyển các mã HTML entity (vd: &#9632;) thành ký tự thật
-                    cleaned_value = html.unescape(cleaned_value)
-                    # Bỏ các ký tự không mong muốn còn lại và khoảng trắng thừa
-                    cleaned_value = cleaned_value.replace('■', '').strip()
-
-                    # Chỉ thêm vào nếu sau khi làm sạch vẫn còn nội dung
-                    if cleaned_value:
-                        variation_values.append(cleaned_value)
-                # ###########################################
-
+                    if 'OFF on cart total' in display_value: continue
+                    cleaned_value = re.sub(r'<.*?>', '', html.unescape(display_value)).replace('■', '').strip()
+                    if cleaned_value: variation_values.append(cleaned_value)
+        
         variations_dict = {}
         for i in range(6):
             key = f"var{i+1}"
             value = variation_values[i] if i < len(variation_values) else None
             variations_dict[key] = value
+        
+        # ### LOGIC MỚI ĐỂ LẤY ẢNH SẢN PHẨM ###
+        image_url = None
+        if should_fetch_images and item.get('product_id'):
+            try:
+                # Gọi thêm một API call để lấy chi tiết sản phẩm
+                product_data = wcapi.get(f"products/{item.get('product_id')}").json()
+                if product_data and product_data.get('images'):
+                    image_url = product_data['images'][0].get('src')
+            except Exception as e:
+                print(f"Không thể lấy ảnh cho sản phẩm ID {item.get('product_id')}: {e}")
+        # ######################################
 
         line_items_data.append({
             'product_name': item.get('name', 'N/A'),
             'quantity': item.get('quantity', 0),
             'sku': item.get('sku', 'N/A'),
             'price': float(item.get('price', 0.0)),
+            'image_url': image_url, # Thêm link ảnh vào dữ liệu
             **variations_dict
         })
 
@@ -105,7 +104,12 @@ def check_single_store(store_id: int):
     with app.app_context():
         store = WooCommerceStore.query.get(store_id)
         if not store or not store.is_active: return
-        print(f"Bắt đầu kiểm tra đơn hàng MỚI cho: '{store.name}'...")
+        
+        # Đọc cài đặt lấy ảnh từ DB
+        fetch_images_setting = Setting.query.get('FETCH_PRODUCT_IMAGES')
+        should_fetch_images = fetch_images_setting.value.lower() == 'true' if fetch_images_setting else False
+
+        print(f"Bắt đầu kiểm tra đơn hàng MỚI cho: '{store.name}' (Lấy ảnh: {should_fetch_images})")
         try:
             wcapi = API(url=store.store_url, consumer_key=store.consumer_key, consumer_secret=store.consumer_secret, version="wc/v3", timeout=20)
             params = {'orderby': 'date', 'order': 'asc'}
@@ -121,7 +125,7 @@ def check_single_store(store_id: int):
             latest_order_time = None
             for order_data in new_orders_response:
                 if not WooCommerceOrder.query.filter_by(wc_order_id=order_data['id'], store_id=store.id).first():
-                    full_details = _extract_order_details(order_data)
+                    full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
                     new_order = WooCommerceOrder(store_id=store.id, **full_details['order'])
                     db.session.add(new_order)
                     for item_data in full_details['line_items']:
@@ -147,6 +151,10 @@ def sync_history_for_store(app, store_id: int, job_id: str):
         store = WooCommerceStore.query.get(store_id)
         task = BackgroundTask.query.filter_by(job_id=job_id).first()
         if not store or not task: return
+
+        # Đọc cài đặt lấy ảnh từ DB
+        fetch_images_setting = Setting.query.get('FETCH_PRODUCT_IMAGES')
+        should_fetch_images = fetch_images_setting.value.lower() == 'true' if fetch_images_setting else False
         
         task.status = 'running'
         db.session.commit()
@@ -159,19 +167,17 @@ def sync_history_for_store(app, store_id: int, job_id: str):
                 task = BackgroundTask.query.filter_by(job_id=job_id).first()
                 if not task or task.requested_cancellation:
                     if task:
-                        task.status = 'cancelled'
-                        db.session.commit()
-                    print(f"Đã hủy hoặc không tìm thấy tác vụ đồng bộ cho '{store.name}'.")
+                        task.status = 'cancelled'; db.session.commit()
                     return
 
-                task.log = f"Đang lấy trang {page}..."
+                task.log = f"Đang lấy trang {page} (Lấy ảnh: {'Bật' if should_fetch_images else 'Tắt'})..."
                 db.session.commit()
                 orders_page = wcapi.get("orders", params={'per_page': 100, 'page': page}).json()
                 if not orders_page: break
 
                 for order_data in orders_page:
                     if not WooCommerceOrder.query.filter_by(wc_order_id=order_data['id'], store_id=store.id).first():
-                        full_details = _extract_order_details(order_data)
+                        full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
                         history_order = WooCommerceOrder(store_id=store.id, **full_details['order'])
                         db.session.add(history_order)
                         for item_data in full_details['line_items']:
@@ -190,7 +196,6 @@ def sync_history_for_store(app, store_id: int, job_id: str):
             task.end_time = datetime.utcnow()
             db.session.commit()
         except Exception as e:
-            print(f"LỖI khi đồng bộ lịch sử cho '{store.name}': {e}")
             task = BackgroundTask.query.filter_by(job_id=job_id).first()
             if task:
                 task.status = 'failed'

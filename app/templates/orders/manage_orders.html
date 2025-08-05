@@ -30,12 +30,17 @@
         font-weight: 500;
         color: #495057;
     }
-    /* Style cho các cột có text dài */
     .long-text-cell div {
         max-width: 250px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    /* Style cho ảnh sản phẩm */
+    .product-image {
+        max-width: 60px;
+        height: auto;
+        border-radius: 4px;
     }
 </style>
 {% endblock %}
@@ -64,8 +69,7 @@
         <thead class="table-light">
             <tr>
                 {% for column in columns_config if column.visible %}
-                    {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}
-                    {% else %}
+                    {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}
                         <th>{{ column.label }}</th>
                     {% endif %}
                 {% endfor %}
@@ -75,16 +79,20 @@
             {% for order in orders %}
             <tr>
                 {% for column in columns_config if column.visible %}
-                    {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}
-                    {% else %}
+                    {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}
                         <td class="
                             {% if column.type == 'currency' %}text-end fw-bold{% endif %}
                             {% if column.key == 'wc_order_id' %}fw-bold{% endif %}
                             {% if column.type == 'datetime' %}small{% endif %}
                             {% if column.type == 'text_long' %}long-text-cell{% endif %}
                         ">
-                            {# Sử dụng IF/ELSE để định dạng cho từng loại dữ liệu #}
-                            {% if column.key == 'order_created_at' and order.order_created_at %}
+                            {% if column.key == 'image' %}
+                                {% for item in order.line_items %}
+                                    {% if item.image_url %}
+                                        <img src="{{ item.image_url }}" alt="{{ item.product_name }}" class="product-image mb-2">
+                                    {% endif %}
+                                {% endfor %}
+                            {% elif column.key == 'order_created_at' and order.order_created_at %}
                                 {{ order.order_created_at.strftime('%d-%m-%Y %H:%M') }}
                             {% elif column.key == 'store_name' %}
                                 <a href="{{ url_for('stores.edit', store_id=order.store_id) }}" title="{{ order.store_name }}">{{ order.store_name }}</a>
@@ -102,14 +110,11 @@
                                 {% for item in order.line_items %}
                                     <li>
                                         <strong>{{ item.product_name }}</strong> (SL: {{ item.quantity }})
-                                        <br>
-                                        <span class="sku-text">SKU: {{ item.sku or 'N/A' }}</span>
-                                        {# ### THAY ĐỔI DUY NHẤT NẰM Ở ĐÂY ### #}
+                                        <br><span class="sku-text">SKU: {{ item.sku or 'N/A' }}</span>
                                         {% set variations = [item.var1, item.var2, item.var3, item.var4, item.var5, item.var6] | select('!=', None) | list %}
                                         {% if variations %}
                                         <br><span class="variations-text">{{ variations | join(' | ') }}</span>
                                         {% endif %}
-                                        {# ################################### #}
                                     </li>
                                 {% endfor %}
                                 </ul>
@@ -123,11 +128,7 @@
                 {% endfor %}
             </tr>
             {% else %}
-            {% set visible_columns = columns_config | selectattr('visible') | list %}
-            {% set colspan = visible_columns|length %}
-            {% if not (current_user.is_super_admin() or current_user.is_admin()) %}
-                {% for col in visible_columns if col.key == 'owner_username' %}{% set colspan = colspan - 1 %}{% endfor %}
-            {% endif %}
+            {% set visible_columns = columns_config | selectattr('visible') | list %}{% set colspan = visible_columns|length %}{% if not (current_user.is_super_admin() or current_user.is_admin()) %}{% for col in visible_columns if col.key == 'owner_username' %}{% set colspan = colspan - 1 %}{% endfor %}{% endif %}
             <tr><td colspan="{{ colspan }}" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào phù hợp với bộ lọc.</td></tr>
             {% endfor %}
         </tbody>

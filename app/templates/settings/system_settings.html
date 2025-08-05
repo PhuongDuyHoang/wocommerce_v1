@@ -22,7 +22,7 @@
 
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items: center pt-3 pb-2 mb-3 border-bottom">
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">{{ title }}</h1>
 </div>
 
@@ -30,7 +30,7 @@
     <div class="col-lg-8">
         <form id="settings-form" action="{{ url_for('settings.system') }}" method="post" novalidate>
             {{ form.hidden_tag() }}
-            {{ form.order_table_columns() }} {# Thêm trường ẩn đã tạo vào đây #}
+            {{ form.order_table_columns() }}
 
             <div class="card shadow-sm mb-4">
                 <div class="card-header"><h5 class="mb-0"><i class="bi bi-telegram me-2"></i>Cài đặt Telegram Hệ thống</h5></div>
@@ -60,7 +60,12 @@
                         {{ form.check_interval_minutes(class="form-control") }}
                         <div class="form-text">Tần suất (phút) hệ thống tự động kiểm tra đơn hàng mới trên tất cả các cửa hàng.</div>
                     </div>
-                 </div>
+                    <div class="form-check mt-3">
+                        {{ form.fetch_product_images(class="form-check-input") }}
+                        {{ form.fetch_product_images.label(class="form-check-label") }}
+                        <div class="form-text">Bật tùy chọn này sẽ lấy cả ảnh đại diện của sản phẩm. <br><b>Lưu ý:</b> Việc này sẽ làm chậm đáng kể quá trình đồng bộ đơn hàng.</div>
+                    </div>
+                    </div>
             </div>
 
             <div class="card shadow-sm mb-4">
@@ -82,6 +87,7 @@
                     </ul>
                 </div>
             </div>
+
             <div class="card shadow-sm mb-4">
                 <div class="card-header"><h5 class="mb-0"><i class="bi bi-file-text-fill me-2"></i>Cấu hình Template Hệ thống</h5></div>
                 <div class="card-body">
@@ -133,18 +139,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const settingsForm = document.getElementById('settings-form');
     const hiddenInput = document.getElementById('order_table_columns');
 
-    // Khởi tạo SortableJS
     if (columnList) {
         new Sortable(columnList, {
-            handle: '.drag-handle', // Chỉ kéo được khi nhấn vào icon
+            handle: '.drag-handle',
             animation: 150,
         });
     }
 
-    // Bắt sự kiện khi form được gửi đi
     if (settingsForm) {
         settingsForm.addEventListener('submit', function(event) {
-            // Trước khi gửi form, cập nhật giá trị cho trường ẩn
             updateHiddenInput();
         });
     }
@@ -152,7 +155,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateHiddenInput() {
         const newConfig = [];
         const items = columnList.querySelectorAll('li.list-group-item');
-
         items.forEach(item => {
             const isVisible = item.querySelector('input[type=checkbox]').checked;
             newConfig.push({
@@ -162,8 +164,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 type: item.dataset.type
             });
         });
-
-        // Chuyển mảng object thành chuỗi JSON và gán vào trường ẩn
         hiddenInput.value = JSON.stringify(newConfig);
     }
 });

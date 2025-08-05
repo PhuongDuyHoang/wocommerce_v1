@@ -76,17 +76,16 @@ class OrderLineItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     
-    # ### THAY ĐỔI CỘT BIẾN THỂ ###
-    # Bỏ cột variations cũ
-    # variations = db.Column(db.String(1000), nullable=True) 
-    # Thêm 6 cột var mới
+    # ### THÊM CỘT MỚI ĐỂ LƯU LINK ẢNH ###
+    image_url = db.Column(db.String(1000), nullable=True)
+    # ######################################
+
     var1 = db.Column(db.String(255), nullable=True)
     var2 = db.Column(db.String(255), nullable=True)
     var3 = db.Column(db.String(255), nullable=True)
     var4 = db.Column(db.String(255), nullable=True)
     var5 = db.Column(db.String(255), nullable=True)
     var6 = db.Column(db.String(255), nullable=True)
-    # ############################
     
     def __repr__(self): return f'<LineItem {self.product_name} for Order ID:{self.order_id}>'
 

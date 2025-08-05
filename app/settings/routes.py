@@ -22,9 +22,10 @@ def system():
     # ### CẬP NHẬT DANH SÁCH CÁC CỘT CÓ THỂ TÙY CHỈNH ###
     DEFAULT_COLUMNS = [
         # Các cột mặc định
+        {'key': 'image', 'label': 'Ảnh SP', 'visible': False, 'type': 'image'}, # <<< CỘT MỚI
         {'key': 'order_created_at', 'label': 'Ngày tạo', 'visible': True, 'type': 'datetime'},
         {'key': 'store_name', 'label': 'Cửa hàng', 'visible': True, 'type': 'text'},
-        {'key': 'owner_username', 'label': 'Người dùng', 'visible': True, 'type': 'text'},
+        {'key': 'owner_username', 'label': 'Người dùng', 'visible': True, 'type': 'text'}, # <<< CỘT MỚI
         {'key': 'wc_order_id', 'label': 'Mã ĐH', 'visible': True, 'type': 'text'},
         {'key': 'customer_name', 'label': 'Khách hàng', 'visible': True, 'type': 'text'},
         {'key': 'total', 'label': 'Tổng tiền', 'visible': True, 'type': 'currency'},
@@ -51,6 +52,8 @@ def system():
             'ORDER_TABLE_COLUMNS': form.order_table_columns.data,
             'telegram_template_new_order': form.telegram_template_new_order.data,
             'telegram_template_system_test': form.telegram_template_system_test.data,
+            # ### LƯU CÀI ĐẶT MỚI ###
+            'FETCH_PRODUCT_IMAGES': 'True' if form.fetch_product_images.data else 'False'
         }
 
         original_interval_setting = Setting.query.get('CHECK_INTERVAL_MINUTES')
@@ -72,6 +75,7 @@ def system():
         flash('Cài đặt hệ thống đã được lưu thành công!', 'success')
         return redirect(url_for('settings.system'))
 
+    # Xử lý cho GET request
     if request.method == 'GET':
         settings_from_db = {s.key: s.value for s in Setting.query.all()}
         form.telegram_bot_token.data = settings_from_db.get('TELEGRAM_BOT_TOKEN')
@@ -80,7 +84,10 @@ def system():
         form.check_interval_minutes.data = int(settings_from_db.get('CHECK_INTERVAL_MINUTES', 5))
         form.telegram_template_new_order.data = settings_from_db.get('telegram_template_new_order')
         form.telegram_template_system_test.data = settings_from_db.get('telegram_template_system_test')
-    
+        # ### TẢI CÀI ĐẶT MỚI ###
+        form.fetch_product_images.data = settings_from_db.get('FETCH_PRODUCT_IMAGES', 'False').lower() == 'true'
+
+    # Xử lý tải hoặc tạo mới cài đặt cột
     order_columns_setting = Setting.query.get('ORDER_TABLE_COLUMNS')
     if not order_columns_setting:
         default_columns_json = json.dumps(DEFAULT_COLUMNS, ensure_ascii=False)
@@ -97,6 +104,14 @@ def system():
                     order_columns_config.append(col_default)
         except json.JSONDecodeError:
             order_columns_config = DEFAULT_COLUMNS
+
+    # Xử lý tải hoặc tạo mới cài đặt lấy ảnh
+    fetch_images_setting = Setting.query.get('FETCH_PRODUCT_IMAGES')
+    if not fetch_images_setting:
+        new_setting = Setting(key='FETCH_PRODUCT_IMAGES', value='False')
+        db.session.add(new_setting)
+        db.session.commit()
+
 
     reg_setting = Setting.query.get('ENABLE_REGISTRATION')
     enable_registration_status = (reg_setting.value.lower() == 'true') if reg_setting else False
