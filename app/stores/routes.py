@@ -1,15 +1,15 @@
 # app/stores/routes.py
 
-from flask import render_template, redirect, url_for, flash
+from flask import render_template, redirect, url_for, flash, current_app
 from flask_login import current_user, login_required
 import uuid
 
 from . import stores_bp
 from .forms import StoreForm
 from app import db
-from app.models import WooCommerceStore, AppUser, BackgroundTask # <<< Thêm BackgroundTask
+from app.models import WooCommerceStore, AppUser, BackgroundTask
 from app.decorators import can_add_store_required
-from app.worker import check_single_store, executor, run_sync_history_in_background # <<< Thêm import
+from app.worker import check_single_store, executor, sync_history_for_store
 
 @stores_bp.route('/')
 @login_required
@@ -38,7 +38,6 @@ def add():
         form.user_id.choices = [(u.id, u.username) for u in assignable_users]
     else:
         del form.user_id
-
     if form.validate_on_submit():
         user_id_to_assign = current_user.id
         if (current_user.is_super_admin() or current_user.is_admin()) and 'user_id' in form:
@@ -114,11 +113,9 @@ def fetch_orders(store_id):
         flash(f'Có lỗi xảy ra khi lấy dữ liệu cho cửa hàng "{store.name}": {e}', 'danger')
     return redirect(url_for('stores.manage'))
 
-# ### ROUTE MỚI ĐỂ KÍCH HOẠT ĐỒNG BỘ LỊCH SỬ ###
 @stores_bp.route('/sync-history/<int:store_id>', methods=['POST'])
 @login_required
 def sync_history(store_id):
-    """Kích hoạt tác vụ nền để đồng bộ toàn bộ lịch sử đơn hàng."""
     store = WooCommerceStore.query.get_or_404(store_id)
     is_owner = (store.user_id == current_user.id)
     is_managed_by_admin = (current_user.is_admin() and store.owner and store.owner.parent_id == current_user.id)
@@ -126,21 +123,16 @@ def sync_history(store_id):
         flash('Bạn không có quyền thực hiện hành động này.', 'danger')
         return redirect(url_for('stores.manage'))
 
-    # Tạo một record trong bảng BackgroundTask để theo dõi
     job_id = str(uuid.uuid4())
-    new_task = BackgroundTask(
-        job_id=job_id,
-        name=f"Đồng bộ lịch sử: {store.name}",
-        user_id=current_user.id,
-        status='queued'
-        # total sẽ được cập nhật sau khi có phản hồi đầu tiên từ API
-    )
+    new_task = BackgroundTask(job_id=job_id, name=f"Đồng bộ lịch sử: {store.name}", user_id=current_user.id, status='queued')
     db.session.add(new_task)
     db.session.commit()
 
-    # Gửi tác vụ vào ThreadPool để chạy nền
-    executor.submit(run_sync_history_in_background, store.id, job_id)
+    # ### SỬA LẠI CÁCH GỌI TÁC VỤ NỀN ###
+    # Lấy đối tượng app hiện tại để truyền vào thread
+    app = current_app._get_current_object()
+    executor.submit(sync_history_for_store, app, store.id, job_id)
+    # ######################################
     
     flash(f'Đã bắt đầu tác vụ đồng bộ lịch sử cho "{store.name}". Xem tiến trình ở tab "Tiến trình".', 'success')
     return redirect(url_for('stores.manage'))
-# ################################################
