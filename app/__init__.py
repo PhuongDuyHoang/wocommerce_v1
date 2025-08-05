@@ -183,6 +183,9 @@ def create_app(config_class=Config):
         }
         
         return render_template('dashboard.html', **context)
+    
+    from . import commands
+    commands.register_commands(app)
 
     return app
 
