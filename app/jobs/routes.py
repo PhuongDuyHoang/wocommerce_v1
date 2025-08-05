@@ -76,22 +76,23 @@ def delete(job_id):
         if not (is_own_task or is_child_task):
              return jsonify({'status': 'error', 'message': 'Bạn không có quyền xóa tác vụ này.'}), 403
 
-    if task.status in ['complete', 'failed', 'cancelled', 'cancelling']: # Cho phép xóa cả tác vụ bị kẹt
+    if task.status in ['complete', 'failed', 'cancelled', 'cancelling']:
         db.session.delete(task)
         db.session.commit()
         return jsonify({'status': 'success', 'message': 'Đã xóa tác vụ thành công.'})
     else:
         return jsonify({'status': 'error', 'message': 'Chỉ có thể xóa các tác vụ đã kết thúc hoặc bị kẹt.'}), 400
 
-# ### ROUTE MỚI ĐỂ XÓA CÁC TÁC VỤ ĐÃ HOÀN THÀNH ###
-@jobs_bp.route('/delete_finished', methods=['POST'])
+# ### THAY ĐỔI ROUTE NÀY ###
+@jobs_bp.route('/delete_all', methods=['POST']) # Đổi tên route
 @login_required
 @admin_or_super_admin_required
-def delete_finished():
-    """Xóa tất cả các tác vụ đã hoàn thành, thất bại hoặc đã hủy."""
-    query = BackgroundTask.query.filter(BackgroundTask.status.in_(['complete', 'failed', 'cancelled']))
+def delete_all(): # Đổi tên hàm
+    """Xóa TOÀN BỘ tác vụ (theo quyền của người dùng)."""
+    # Bỏ bộ lọc theo trạng thái, lấy tất cả tác vụ
+    query = BackgroundTask.query
     
-    # Giới hạn quyền xóa cho Admin
+    # Giới hạn quyền xóa cho Admin (chỉ xóa của mình và của user con)
     if current_user.is_admin():
         managed_user_ids = [user.id for user in current_user.children]
         managed_user_ids.append(current_user.id)
@@ -104,6 +105,6 @@ def delete_finished():
         db.session.delete(task)
     
     db.session.commit()
-    flash(f'Đã xóa thành công {num_deleted} tác vụ đã hoàn thành.', 'success')
+    flash(f'Đã xóa thành công {num_deleted} tác vụ.', 'success') # Cập nhật thông báo
     return redirect(url_for('jobs.view'))
-# #################################################
+# ###########################
