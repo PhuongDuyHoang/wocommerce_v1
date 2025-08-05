@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        {% if current_user.is_super_admin() or current_user.is_admin() or current_user.can_add_store %}
+        <a href="{{ url_for('stores.add') }}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-plus-circle-fill"></i> Thêm Cửa hàng mới
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 20%;">Tên Cửa hàng</th>
+                <th style="width: 25%;">URL</th>
+                {% if current_user.is_super_admin() or current_user.is_admin() %}
+                <th style="width: 10%;">Người dùng</th>
+                {% endif %}
+                <th style="width: 10%;">Trạng thái</th>
+                <th style="width: 20%;">Ghi chú</th>
+                <th style="width: 15%;" class="text-end">Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for store in stores %}
+            <tr>
+                <td><strong>{{ store.name }}</strong></td>
+                <td><a href="{{ store.store_url }}" target="_blank">{{ store.store_url }}</a></td>
+                
+                {% if current_user.is_super_admin() or current_user.is_admin() %}
+                <td>
+                    {% if store.owner %}
+                        <span class="badge bg-info text-dark">{{ store.owner.username }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Chưa gán</span>
+                    {% endif %}
+                </td>
+                {% endif %}
+
+                <td>
+                    <span class="badge {% if store.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                        {{ 'Đang hoạt động' if store.is_active else 'Tạm ngưng' }}
+                    </span>
+                </td>
+                <td>
+                    <small class="text-muted">{{ store.note or '' }}</small>
+                </td>
+                <td class="text-end">
+                    <div class="d-flex justify-content-end gap-1">
+                        {% set can_modify = current_user.is_super_admin() or (current_user.id == store.user_id) or (current_user.is_admin() and store.owner and store.owner.parent_id == current_user.id) %}
+                        
+                        {% if can_modify %}
+                            <form action="{{ url_for('stores.fetch_orders', store_id=store.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Kéo đơn hàng mới">
+                                    <i class="bi bi-cloud-download-fill"></i>
+                                </button>
+                            </form>
+                            
+                            <form action="{{ url_for('stores.sync_history', store_id=store.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Hành động này sẽ quét lại toàn bộ lịch sử đơn hàng của cửa hàng \'{{ store.name }}\'. Việc này có thể mất nhiều thời gian. Bạn có chắc chắn?')">
+                                <button type="submit" class="btn btn-sm btn-outline-warning" title="Đồng bộ toàn bộ lịch sử">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </form>
+                            <a href="{{ url_for('stores.edit', store_id=store.id) }}" class="btn btn-sm btn-outline-secondary" title="Sửa">
+                                <i class="bi bi-pencil-fill"></i>
+                            </a>
+                            <form action="{{ url_for('stores.delete', store_id=store.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa cửa hàng \'{{ store.name }}\'?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="{% if current_user.is_super_admin() or current_user.is_admin() %}6{% else %}5{% endif %}" class="text-center text-muted py-4">
+                    Chưa có cửa hàng nào. Hãy thêm một cửa hàng mới.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

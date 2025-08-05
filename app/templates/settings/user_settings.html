@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<form action="{{ url_for('settings.personal') }}" method="post" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="row">
+        <div class="col-lg-7">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-telegram me-2"></i>Cài đặt Telegram Cá nhân</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Các cài đặt tại đây sẽ được ưu tiên sử dụng thay cho cài đặt của hệ thống để gửi thông báo cho riêng bạn.</p>
+                    <div class="mb-3">
+                        {{ form.telegram_bot_token.label(class="form-label") }}
+                        {{ form.telegram_bot_token(class="form-control", placeholder="Để trống nếu muốn dùng Bot của hệ thống") }}
+                        {% for error in form.telegram_bot_token.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.telegram_chat_id.label(class="form-label") }}
+                        {{ form.telegram_chat_id(class="form-control", placeholder="Nhập ID kênh chat của riêng bạn") }}
+                        {% for error in form.telegram_chat_id.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="form-check mb-3">
+                        {{ form.telegram_enabled(class="form-check-input") }}
+                        {{ form.telegram_enabled.label(class="form-check-label") }}
+                    </div>
+
+                    {# Trường tùy chỉnh độ trễ chỉ hiển thị nếu người dùng có quyền #}
+                    {% if current_user.can_customize_telegram_delay %}
+                    <hr>
+                    <div class="mb-3">
+                        {{ form.telegram_send_delay_seconds.label(class="form-label") }}
+                        {{ form.telegram_send_delay_seconds(class="form-control") }}
+                        <div class="form-text">Ghi đè độ trễ gửi tin nhắn mặc định của hệ thống.</div>
+                        {% for error in form.telegram_send_delay_seconds.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Trường tùy chỉnh template chỉ hiển thị nếu người dùng có quyền #}
+            {% if current_user.can_customize_telegram_templates %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                     <h5 class="mb-0"><i class="bi bi-file-text-fill me-2"></i>Cấu hình Template Cá nhân</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        {{ form.telegram_template_new_order.label(class="form-label") }}
+                        {{ form.telegram_template_new_order(class="form-control") }}
+                        <div class="form-text">Để trống để sử dụng template mặc định của hệ thống.</div>
+                    </div>
+                     <div class="mb-3">
+                        {{ form.telegram_template_user_test.label(class="form-label") }}
+                        {{ form.telegram_template_user_test(class="form-control") }}
+                        <div class="form-text">Để trống để sử dụng template mặc định của hệ thống.</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="d-flex justify-content-end">
+                {{ form.submit(class="btn btn-primary btn-lg") }}
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card shadow-sm mb-4">
+                 <div class="card-body">
+                    <h5 class="card-title">Kiểm tra Telegram</h5>
+                    <p class="text-muted small">Nhấn nút để gửi tin nhắn thử đến kênh cá nhân của bạn. Hãy lưu cài đặt trước khi thử.</p>
+                    <form action="{{ url_for('settings.test_personal_telegram') }}" method="POST">
+                        <button type="submit" class="btn btn-outline-info" 
+                            {% if not current_user.telegram_enabled or not current_user.telegram_chat_id %}
+                                disabled title="Vui lòng bật và điền Chat ID trước khi thử"
+                            {% endif %}>
+                            <i class="bi bi-send-check"></i> Gửi tin nhắn thử
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

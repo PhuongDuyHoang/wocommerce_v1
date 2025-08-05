@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form action="" method="post" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control") }}
+                        {% for error in form.username.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    {# Các trường chỉ Super Admin mới có quyền thay đổi #}
+                    {% if current_user.is_super_admin() and form.role and form.parent %}
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.role.label(class="form-label") }}
+                            {{ form.role(class="form-select") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.parent.label(class="form-label") }}
+                            {{ form.parent(class="form-select") }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        {{ form.is_active.label(class="form-check-label") }}
+                        {{ form.is_active(class="form-check-input ms-2") }}
+                        <div class="form-text">Bỏ chọn để vô hiệu hóa tài khoản này.</div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h5 class="mb-3">Cấp quyền cho người dùng</h5>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                             <div class="form-check mb-2">
+                                {{ form.can_add_store(class="form-check-input permission-checkbox") }}
+                                {{ form.can_add_store.label(class="form-check-label") }}
+                            </div>
+                            <div class="form-check mb-2">
+                                {{ form.can_delete_store(class="form-check-input permission-checkbox") }}
+                                {{ form.can_delete_store.label(class="form-check-label") }}
+                            </div>
+                            <div class="form-check mb-3">
+                                {{ form.can_view_orders(class="form-check-input permission-checkbox") }}
+                                {{ form.can_view_orders.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                        {# Các quyền nâng cao chỉ Super Admin mới được cấp #}
+                        {% if current_user.is_super_admin() and form.can_customize_telegram_delay %}
+                        <div class="col-md-6">
+                             <div class="form-check mb-2">
+                                {{ form.can_customize_telegram_delay(class="form-check-input permission-checkbox") }}
+                                {{ form.can_customize_telegram_delay.label(class="form-check-label") }}
+                            </div>
+                            <div class="form-check mb-2">
+                                {{ form.can_customize_telegram_templates(class="form-check-input permission-checkbox") }}
+                                {{ form.can_customize_telegram_templates.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-check my-3">
+                        {{ form.full_permissions(class="form-check-input", id="full_permissions") }}
+                        {{ form.full_permissions.label(class="form-check-label") }}
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.password.label(class="form-label") }}
+                            {{ form.password(class="form-control", placeholder="Để trống nếu không đổi") }}
+                            {% for error in form.password.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.password2.label(class="form-label") }}
+                            {{ form.password2(class="form-control") }}
+                            {% for error in form.password2.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <a href="{{ url_for('users.manage') }}" class="btn btn-secondary">Hủy</a>
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const fullPermissionsCheckbox = document.getElementById('full_permissions');
+        const allPermissionCheckboxes = document.querySelectorAll('.permission-checkbox');
+
+        function updateFullPermissionsCheckboxState() {
+            if (!fullPermissionsCheckbox) return;
+            const allChecked = Array.from(allPermissionCheckboxes).every(cb => cb.checked);
+            fullPermissionsCheckbox.checked = allChecked;
+        }
+
+        if (fullPermissionsCheckbox) {
+            fullPermissionsCheckbox.addEventListener('change', function() {
+                allPermissionCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+            });
+        }
+
+        allPermissionCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateFullPermissionsCheckboxState);
+        });
+
+        // Cập nhật trạng thái ban đầu khi tải trang
+        updateFullPermissionsCheckboxState();
+    });
+</script>
+{% endblock %}

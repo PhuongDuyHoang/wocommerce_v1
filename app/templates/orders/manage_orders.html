@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .table td, .table th { vertical-align: middle; }
+    .product-list { list-style-type: none; padding-left: 0; margin-bottom: 0; font-size: 0.85em; }
+    .product-list li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form id="filters-form" action="{{ url_for('orders.manage_all_orders') }}" method="GET">
+            <div class="row g-2 align-items-end">
+                <div class="col-md"><label for="search_query" class="form-label">Tìm kiếm</label><input type="text" class="form-control form-control-sm" id="search_query" name="search_query" placeholder="Mã đơn hàng, tên khách..." value="{{ search_query or '' }}"></div>
+                <div class="col-md-2"><label for="store_id_filter" class="form-label">Cửa hàng</label><select class="form-select form-select-sm" id="store_id_filter" name="store_id"><option value="">Tất cả</option>{% for store in stores_for_filter %}<option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>{% endfor %}</select></div>
+                <div class="col-md-2"><label for="start_date" class="form-label">Từ ngày</label><input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date or '' }}"></div>
+                <div class="col-md-2"><label for="end_date" class="form-label">Đến ngày</label><input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date or '' }}"></div>
+                <div class="col-md-auto"><div class="d-flex gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('orders.manage_all_orders') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover table-bordered table-sm">
+        <thead class="table-light">
+            <tr>
+                {% for column in columns_config if column.visible %}
+                    {# Tự động ẩn cột User nếu người dùng không có quyền xem #}
+                    {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}
+                        {# Không làm gì cả, bỏ qua cột này #}
+                    {% else %}
+                        <th>{{ column.label }}</th>
+                    {% endif %}
+                {% endfor %}
+            </tr>
+            </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                {% for column in columns_config if column.visible %}
+                    {# Tương tự, bỏ qua cột User nếu không có quyền #}
+                    {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}
+                        {# Bỏ qua #}
+                    {% else %}
+                        <td 
+                            {% if column.type == 'currency' %}class="text-end fw-bold"{% endif %}
+                            {% if column.key == 'wc_order_id' %}class="fw-bold"{% endif %}
+                            {% if column.type == 'datetime' %}class="small"{% endif %}
+                        >
+                            {# Sử dụng IF/ELSE để định dạng cho từng loại dữ liệu #}
+                            {% if column.key == 'order_created_at' and order.order_created_at %}
+                                {{ order.order_created_at.strftime('%d-%m-%Y %H:%M') }}
+                            {% elif column.key == 'store_name' %}
+                                <a href="{{ url_for('stores.edit', store_id=order.store_id) }}" title="{{ order.store_name }}">{{ order.store_name }}</a>
+                            {% elif column.key == 'owner_username' %}
+                                {% if order.owner_username != 'Chưa gán' %}
+                                    <span class="badge bg-info text-dark">{{ order.owner_username }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Chưa gán</span>
+                                {% endif %}
+                            {% elif column.key == 'wc_order_id' %}
+                                #{{ order.wc_order_id }}
+                            {% elif column.key == 'total' %}
+                                ${{ "{:,.2f}".format(order.total) }}
+                            {% elif column.key == 'status' %}
+                                {% set status_map = {'processing': 'bg-primary','completed': 'bg-success','on-hold': 'bg-warning text-dark','pending': 'bg-secondary','cancelled': 'bg-danger','refunded': 'bg-dark','failed': 'bg-danger'} %}
+                                <span class="badge {{ status_map.get(order.status, 'bg-light text-dark') }}">{{ order.status }}</span>
+                            {% elif column.key == 'products' %}
+                                <ul class="product-list">
+                                {% for product in order.products %}
+                                    <li title="{{ product.name }} (SL: {{ product.quantity }})">{{ product.name }} (SL: {{ product.quantity }})</li>
+                                {% endfor %}
+                                </ul>
+                            {% else %}
+                                {{ order[column.key] }}
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                {% endfor %}
+                </tr>
+            {% else %}
+            {# Tính toán colspan động cho thông báo rỗng #}
+            {% set visible_columns = columns_config | selectattr('visible') | list %}
+            {% set colspan = visible_columns|length %}
+            {% if not (current_user.is_super_admin() or current_user.is_admin()) %}
+                {% for col in visible_columns if col.key == 'owner_username' %}{% set colspan = colspan - 1 %}{% endfor %}
+            {% endif %}
+            <tr><td colspan="{{ colspan }}" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào phù hợp với bộ lọc.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if pagination and pagination.pages > 1 %}
+<nav aria-label="Page navigation"><ul class="pagination justify-content-center mt-4">
+    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.prev_num, search_query=search_query, store_id=selected_store_id, start_date=start_date, end_date=end_date) }}">&laquo;</a></li>
+    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=3) %}
+      {% if page_num %}<li class="page-item {% if page_num == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=page_num, search_query=search_query, store_id=selected_store_id, start_date=start_date, end_date=end_date) }}">{{ page_num }}</a></li>
+      {% else %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}
+    {% endfor %}
+    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.next_num, search_query=search_query, store_id=selected_store_id, start_date=start_date, end_date=end_date) }}">&raquo;</a></li>
+</ul></nav>
+{% endif %}
+
+{% endblock %}

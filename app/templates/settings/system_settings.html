@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    #column-list .list-group-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .drag-handle {
+        cursor: move; /* Hoặc 'grab' */
+        font-size: 1.2rem;
+        color: #6c757d;
+    }
+    /* Hiệu ứng khi một mục đang được kéo */
+    .sortable-ghost {
+        opacity: 0.4;
+        background-color: #d1ecf1;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items: center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <form id="settings-form" action="{{ url_for('settings.system') }}" method="post" novalidate>
+            {{ form.hidden_tag() }}
+            {{ form.order_table_columns() }} {# Thêm trường ẩn đã tạo vào đây #}
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-telegram me-2"></i>Cài đặt Telegram Hệ thống</h5></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        {{ form.telegram_bot_token.label(class="form-label") }}
+                        {{ form.telegram_bot_token(class="form-control", placeholder="Dán token của bot vào đây...") }}
+                        <div class="form-text">Bot token hệ thống sẽ được sử dụng để gửi thông báo chung và làm dự phòng khi người dùng không có cấu hình riêng.</div>
+                    </div>
+                    <div class="mb-3">
+                        {{ form.telegram_chat_id.label(class="form-label") }}
+                        {{ form.telegram_chat_id(class="form-control", placeholder="Dán ID của kênh/nhóm/người dùng...") }}
+                        <div class="form-text">ID của kênh hoặc nhóm chat sẽ nhận mọi thông báo của hệ thống.</div>
+                    </div>
+                     <div class="mb-3">
+                        {{ form.telegram_send_delay_seconds.label(class="form-label") }}
+                        {{ form.telegram_send_delay_seconds(class="form-control") }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Cài đặt Worker</h5></div>
+                 <div class="card-body">
+                     <div class="mb-3">
+                        {{ form.check_interval_minutes.label(class="form-label") }}
+                        {{ form.check_interval_minutes(class="form-control") }}
+                        <div class="form-text">Tần suất (phút) hệ thống tự động kiểm tra đơn hàng mới trên tất cả các cửa hàng.</div>
+                    </div>
+                 </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-table me-2"></i>Tùy chỉnh Bảng Đơn hàng</h5></div>
+                <div class="card-body">
+                    <p class="text-muted">Kéo thả <i class="bi bi-grip-vertical"></i> để sắp xếp thứ tự các cột. Tick để chọn các cột sẽ được hiển thị.</p>
+                    <ul id="column-list" class="list-group">
+                        {% for column in order_columns_config %}
+                        <li class="list-group-item" data-key="{{ column.key }}" data-label="{{ column.label }}" data-type="{{ column.type }}">
+                            <i class="bi bi-grip-vertical drag-handle"></i>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="check-{{ column.key }}" {% if column.visible %}checked{% endif %}>
+                                <label class="form-check-label" for="check-{{ column.key }}">
+                                    {{ column.label }}
+                                </label>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-file-text-fill me-2"></i>Cấu hình Template Hệ thống</h5></div>
+                <div class="card-body">
+                     <div class="mb-3">
+                        {{ form.telegram_template_new_order.label(class="form-label") }}
+                        {{ form.telegram_template_new_order(class="form-control") }}
+                        <div class="form-text">Các biến: <code>{{ store_name }}</code>, <code>{{ order_id }}</code>, <code>{{ customer_name }}</code>, <code>{{ total_amount }}</code>, <code>{{ currency }}</code>, <code>{{ status }}</code>, <code>{{ payment_method }}</code>, <code>{{ product_list }}</code>.</div>
+                    </div>
+                    <div class="mb-3">
+                        {{ form.telegram_template_system_test.label(class="form-label") }}
+                        {{ form.telegram_template_system_test(class="form-control") }}
+                        <div class="form-text">Biến: <code>{{ bot_username }}</code>.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end">
+                {{ form.submit(class="btn btn-primary btn-lg") }}
+            </div>
+        </form>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Kiểm tra Telegram</h5>
+                <p class="text-muted small">Nhấn nút để gửi tin nhắn thử đến kênh hệ thống. Hãy lưu cài đặt trước khi thử.</p>
+                <form action="{{ url_for('settings.test_system_telegram') }}" method="POST"><button type="submit" class="btn btn-outline-info"><i class="bi bi-send-check"></i> Gửi tin nhắn thử</button></form>
+            </div>
+        </div>
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Chức năng Đăng ký</h5>
+                <p class="text-muted small">Cho phép hoặc chặn người dùng tự đăng ký tài khoản mới.</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div><span class="badge fs-6 {% if enable_registration_status %}bg-success{% else %}bg-danger{% endif %}">{{ 'Đang Bật' if enable_registration_status else 'Đang Tắt' }}</span></div>
+                    <form action="{{ url_for('settings.toggle_registration') }}" method="post"><button type="submit" class="btn btn-sm {% if enable_registration_status %}btn-warning{% else %}btn-success{% endif %}">{{ 'Tắt' if enable_registration_status else 'Bật' }}</button></form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const columnList = document.getElementById('column-list');
+    const settingsForm = document.getElementById('settings-form');
+    const hiddenInput = document.getElementById('order_table_columns');
+
+    // Khởi tạo SortableJS
+    if (columnList) {
+        new Sortable(columnList, {
+            handle: '.drag-handle', // Chỉ kéo được khi nhấn vào icon
+            animation: 150,
+        });
+    }
+
+    // Bắt sự kiện khi form được gửi đi
+    if (settingsForm) {
+        settingsForm.addEventListener('submit', function(event) {
+            // Trước khi gửi form, cập nhật giá trị cho trường ẩn
+            updateHiddenInput();
+        });
+    }
+
+    function updateHiddenInput() {
+        const newConfig = [];
+        const items = columnList.querySelectorAll('li.list-group-item');
+
+        items.forEach(item => {
+            const isVisible = item.querySelector('input[type=checkbox]').checked;
+            newConfig.push({
+                key: item.dataset.key,
+                label: item.dataset.label,
+                visible: isVisible,
+                type: item.dataset.type
+            });
+        });
+
+        // Chuyển mảng object thành chuỗi JSON và gán vào trường ẩn
+        hiddenInput.value = JSON.stringify(newConfig);
+    }
+});
+</script>
+{% endblock %}

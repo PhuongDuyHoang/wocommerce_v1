@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<form id="statistics-form" action="{{ url_for('dashboard') }}" method="GET" class="mb-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                {% if current_user.is_super_admin() %}
+                <div class="col-md-3">
+                    <label for="admin_id_filter" class="form-label">Lọc theo Admin:</label>
+                    <select class="form-select form-select-sm" id="admin_id_filter" name="admin_id">
+                        <option value="">Tất cả Admin</option>
+                        {% for admin_user in admin_users %}
+                        <option value="{{ admin_user.id }}" {% if admin_user.id == selected_admin_id %}selected{% endif %}>{{ admin_user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                {% if current_user.is_super_admin() or current_user.is_admin() %}
+                <div class="col-md-3">
+                    <label for="sub_user_id_filter" class="form-label">Lọc theo User con:</label>
+                    <select class="form-select form-select-sm" id="sub_user_id_filter" name="sub_user_id">
+                        <option value="">Tất cả User con</option>
+                        {% for sub_user in sub_users %}
+                        <option value="{{ sub_user.id }}" {% if sub_user.id == selected_sub_user_id %}selected{% endif %}>{{ sub_user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-2"><label for="start_date" class="form-label">Từ ngày:</label><input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date or '' }}"></div>
+                <div class="col-md-2"><label for="end_date" class="form-label">Đến ngày:</label><input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date or '' }}"></div>
+                <div class="col-md-auto ms-auto"><div class="d-flex justify-content-end gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row">
+    <div class="col-md-6 col-lg-3 mb-4"><div class="card text-white bg-primary shadow h-100"><div class="card-body"><div class="d-flex justify-content-between align-items-center"><div><div class="text-white-75 small">Tổng Doanh thu</div><div class="fs-4 fw-bold">{{ total_revenue }}</div></div><i class="bi bi-cash-coin fs-1 text-white-50"></i></div></div></div></div>
+    <div class="col-md-6 col-lg-3 mb-4"><div class="card text-white bg-success shadow h-100"><div class="card-body"><div class="d-flex justify-content-between align-items-center"><div><div class="text-white-75 small">Tổng Đơn hàng</div><div class="fs-4 fw-bold">{{ total_orders }}</div></div><i class="bi bi-box-seam fs-1 text-white-50"></i></div></div></div></div>
+    <div class="col-md-6 col-lg-3 mb-4"><div class="card text-white bg-info shadow h-100"><div class="card-body"><div class="d-flex justify-content-between align-items-center"><div><div class="text-white-75 small">Tổng Cửa hàng</div><div class="fs-4 fw-bold">{{ total_stores }}</div></div><i class="bi bi-shop fs-1 text-white-50"></i></div></div></div></div>
+    <div class="col-md-6 col-lg-3 mb-4"><div class="card text-white bg-warning shadow h-100"><div class="card-body"><div class="d-flex justify-content-between align-items-center"><div><div class="text-white-75 small">Đơn hàng Mới (24h)</div><div class="fs-4 fw-bold">{{ new_orders_24h }}</div></div><i class="bi bi-clock-history fs-1 text-white-50"></i></div></div></div></div>
+</div>
+
+<div class="row">
+    <div class="col-lg-12 mb-4">
+        <div class="card shadow-sm"><div class="card-header"><h5 class="mb-0">Doanh thu 7 ngày gần nhất</h5></div><div class="card-body"><canvas id="revenueChart" style="height: 300px;"></canvas></div></div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow-sm h-100"><div class="card-header"><h5 class="mb-0">Đơn hàng gần đây</h5></div><div class="card-body"><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Ngày</th><th>Cửa hàng</th><th>Khách hàng</th><th>Tổng tiền</th><th>Trạng thái</th></tr></thead><tbody>
+            {% for order in recent_orders %}
+            <tr>
+                <td class="small">{{ order.order_created_at.strftime('%d-%m %H:%M') }}</td>
+                <td>{{ order.store.name }}</td>
+                <td>{{ order.customer_name }}</td>
+                <td class="text-end fw-bold">${{ "{:,.2f}".format(order.total) }}</td>
+                <td>
+                    {% set status_map = {'processing': 'bg-primary', 'completed': 'bg-success', 'on-hold': 'bg-warning text-dark', 'pending': 'bg-secondary', 'cancelled': 'bg-danger', 'refunded': 'bg-dark', 'failed': 'bg-danger'} %}
+                    <span class="badge {{ status_map.get(order.status, 'bg-light text-dark') }}">{{ order.status }}</span>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted">Không có đơn hàng nào.</td></tr>
+            {% endfor %}
+        </tbody></table></div></div></div>
+    </div>
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow-sm h-100"><div class="card-header"><h5 class="mb-0">Top Cửa hàng theo Doanh thu</h5></div><div class="card-body"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Cửa hàng</th><th class="text-end">Doanh thu</th></tr></thead><tbody>
+            {% for store_name, revenue in top_stores %}
+            <tr>
+                <td>{{ store_name }}</td>
+                <td class="text-end fw-bold">${{ "{:,.2f}".format(revenue) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" class="text-center text-muted">Chưa có dữ liệu.</td></tr>
+            {% endfor %}
+        </tbody></table></div></div></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Hàm vẽ biểu đồ
+    function renderRevenueChart() {
+        const chartLabels = JSON.parse('{{ chart_labels|safe }}');
+        const chartData = JSON.parse('{{ chart_data|safe }}');
+        const ctx = document.getElementById('revenueChart');
+
+        if (!ctx) return;
+
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+            existingChart.destroy();
+        }
+
+        Chart.register(ChartDataLabels);
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    label: 'Doanh thu',
+                    data: chartData,
+                    fill: false,
+                    borderColor: '#0d6efd',
+                    borderWidth: 3,
+                    tension: 0.1,
+                    pointBackgroundColor: '#0d6efd',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: function(value) { return '$' + value.toLocaleString('en-US'); } }
+                    },
+                    x: { grid: { display: false } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        color: '#333',
+                        font: { weight: 'bold', size: 14 },
+                        formatter: function(value, context) {
+                            if (value > 0) {
+                                return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+                            }
+                            return null;
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Doanh thu: $' + context.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Chạy hàm vẽ biểu đồ
+        renderRevenueChart();
+
+        // ### JAVASCRIPT CHO BỘ LỌC USER ###
+        const adminFilter = document.getElementById('admin_id_filter');
+        const form = document.getElementById('statistics-form');
+
+        if (adminFilter) {
+            adminFilter.addEventListener('change', function() {
+                const subUserFilter = document.getElementById('sub_user_id_filter');
+                if(subUserFilter) {
+                    subUserFilter.value = ""; // Reset bộ lọc user con
+                }
+                form.submit();
+            });
+        }
+    });
+</script>
+{% endblock %}

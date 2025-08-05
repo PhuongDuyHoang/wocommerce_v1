@@ -1,0 +1,27 @@
+# --- Core Flask Framework & Extensions (Upgraded for compatibility) ---
+# Upgraded to be compatible with SQLAlchemy 2+ and modern standards
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Werkzeug==3.0.3
+Jinja2==3.1.4
+
+# --- Database Connector ---
+# For PostgreSQL. If you use another DB (MySQL, SQLite), change this library.
+psycopg2-binary==2.9.9
+
+# --- API Clients ---
+# Main library for working with the WooCommerce API
+WooCommerce==3.0.0
+# httpx version is no longer specified here to resolve dependency conflict
+python-telegram-bot==20.8
+# The httpx line was removed. python-telegram-bot will install the version it needs.
+
+# --- Background Jobs & Scheduling ---
+APScheduler==3.10.4
+
+# --- Utilities ---
+# For reading .env files
+python-dotenv==1.0.1

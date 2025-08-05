@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .progress-wrapper {
+        position: relative;
+        height: 25px;
+    }
+    .progress {
+        height: 100%;
+        font-size: 0.9em;
+        background-color: #e9ecef;
+    }
+    .progress-text {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        line-height: 25px;
+        color: #212529;
+        font-weight: 500;
+        z-index: 2;
+    }
+    .status-badge { font-size: 0.9em; padding: 0.5em 0.75em; }
+    .log-text { font-family: monospace; font-size: 0.85em; color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button id="refresh-btn" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-clockwise"></i> Cập nhật
+        </button>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Tên tác vụ</th>
+                <th>Trạng thái</th>
+                <th>Tiến trình</th>
+                <th>Bắt đầu</th>
+                <th>Kết thúc</th>
+                {% if current_user.is_super_admin() or current_user.is_admin() %}
+                <th>Người dùng</th>
+                {% endif %}
+                <th class="text-end">Hành động</th>
+            </tr>
+        </thead>
+        <tbody id="jobs-table-body">
+            </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const jobsTableBody = document.getElementById('jobs-table-body');
+    const refreshBtn = document.getElementById('refresh-btn');
+    let intervalId = null;
+
+    function getStatusBadge(status) {
+        let badgeClass = 'bg-secondary';
+        if (status === 'running') badgeClass = 'bg-info text-dark';
+        else if (status === 'complete') badgeClass = 'bg-success';
+        else if (status === 'failed') badgeClass = 'bg-danger';
+        else if (status === 'cancelling') badgeClass = 'bg-warning text-dark';
+        else if (status === 'cancelled') badgeClass = 'bg-dark';
+        else if (status === 'queued') badgeClass = 'bg-primary'; 
+        return `<span class="badge ${badgeClass} status-badge text-capitalize">${status}</span>`;
+    }
+
+    function updateJobsTable() {
+        fetch("{{ url_for('jobs.status') }}")
+            .then(response => response.json())
+            .then(tasks => {
+                let tableHtml = '';
+                let hasActiveJobs = false;
+
+                if (tasks.length === 0) {
+                    const colspan = ( "{{ current_user.is_super_admin() }}" === "True" || "{{ current_user.is_admin() }}" === "True") ? 7 : 6;
+                    tableHtml = `<tr><td colspan="${colspan}" class="text-center text-muted py-4">Không có tác vụ nào.</td></tr>`;
+                } else {
+                    tasks.forEach(task => {
+                        const percent = task.total > 0 ? (task.progress / task.total) * 100 : (task.status === 'complete' ? 100 : 0);
+                        const isActionable = task.status === 'running' || task.status === 'queued' || task.status === 'cancelling';
+                        const isFinished = task.status === 'complete' || task.status === 'failed' || task.status === 'cancelled';
+                        
+                        if (isActionable) {
+                            hasActiveJobs = true;
+                        }
+
+                        let progressBarClass = '';
+                        if (task.status === 'complete') progressBarClass = 'bg-success';
+                        else if (task.status === 'failed') progressBarClass = 'bg-danger';
+                        else if (task.status === 'cancelled') progressBarClass = 'bg-dark';
+                        else if (task.status === 'cancelling') progressBarClass = 'bg-warning';
+                        else if (task.status === 'running' || task.status === 'queued') progressBarClass = 'bg-info progress-bar-striped progress-bar-animated';
+
+                        tableHtml += `
+                            <tr id="job-${task.job_id}">
+                                <td>
+                                    <strong>${task.name}</strong>
+                                    <div class="log-text">${task.log || ''}</div>
+                                </td>
+                                <td>${getStatusBadge(task.status)}</td>
+                                <td>
+                                    <div class="progress-wrapper">
+                                        <div class="progress-text">${task.progress} / ?</div>
+                                        <div class="progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100">
+                                            <div class="progress-bar ${progressBarClass}" style="width: ${percent}%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>${task.start_time}</td>
+                                <td>${task.end_time || '...'}</td> 
+                                {% if current_user.is_super_admin() or current_user.is_admin() %}
+                                <td>${task.user}</td>
+                                {% endif %}
+                                <td class="text-end">
+                                    ${isActionable ? `<button class="btn btn-sm btn-warning cancel-btn" data-job-id="${task.job_id}" title="Hủy tác vụ"><i class="bi bi-stop-circle-fill"></i></button>` : ''}
+                                    {% if current_user.is_super_admin() or current_user.is_admin() %}
+                                    <button class="btn btn-sm btn-danger delete-btn" 
+                                            data-job-id="${task.job_id}" 
+                                            ${isFinished ? '' : 'disabled'} 
+                                            title="${isFinished ? 'Xóa tác vụ' : 'Chỉ có thể xóa tác vụ đã kết thúc'}">
+                                        <i class="bi bi-trash-fill"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+                jobsTableBody.innerHTML = tableHtml;
+
+                if (!hasActiveJobs && intervalId) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                } else if (hasActiveJobs && !intervalId) {
+                    intervalId = setInterval(updateJobsTable, 3000);
+                }
+            });
+    }
+
+    jobsTableBody.addEventListener('click', function(e) {
+        const targetButton = e.target.closest('button');
+        if (!targetButton) return;
+
+        const jobId = targetButton.dataset.jobId;
+
+        if (targetButton.classList.contains('cancel-btn')) {
+            if (confirm('Bạn có chắc muốn hủy tác vụ này?')) {
+                fetch(`/jobs/cancel/${jobId}`, { method: 'POST' })
+                    .then(() => updateJobsTable());
+            }
+        } else if (targetButton.classList.contains('delete-btn')) {
+            if (confirm('Bạn có chắc muốn xóa vĩnh viễn tác vụ này?')) {
+                fetch(`/jobs/delete/${jobId}`, { method: 'POST' })
+                    .then(() => updateJobsTable());
+            }
+        }
+    });
+    
+    refreshBtn.addEventListener('click', updateJobsTable);
+
+    // Bắt đầu cập nhật
+    updateJobsTable();
+    intervalId = setInterval(updateJobsTable, 3000); // Cập nhật mỗi 3 giây
+});
+</script>
+{% endblock %}

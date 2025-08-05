@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    #bulk-user-actions-container {
+        display: none; /* Mặc định ẩn */
+    }
+    .permission-list {
+        list-style-type: none;
+        padding-left: 0;
+        margin-bottom: 0;
+        font-size: 0.8em;
+    }
+    .permission-list li {
+        margin-bottom: 2px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0 d-flex align-items-center">
+        {# Container cho hành động xóa hàng loạt, chỉ Super Admin thấy #}
+        {% if current_user.is_super_admin() %}
+        <div id="bulk-user-actions-container" class="me-2">
+            <button type="button" id="delete-selected-users-btn" class="btn btn-sm btn-danger">
+                <i class="bi bi-trash-fill"></i> Xóa đã chọn (<span id="selected-users-count">0</span>)
+            </button>
+        </div>
+        {% endif %}
+
+        <a href="{{ url_for('users.add') }}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-person-plus-fill"></i> Thêm Người dùng
+        </a>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                {% if current_user.is_super_admin() %}
+                <th style="width: 3%;" class="text-center">
+                    <input class="form-check-input" type="checkbox" id="select-all-users-checkbox" title="Chọn/Bỏ chọn tất cả">
+                </th>
+                {% endif %}
+                <th>Tên đăng nhập</th>
+                <th>Vai trò</th>
+                <th>Người quản lý</th>
+                <th>Trạng thái</th>
+                <th>Quyền</th>
+                <th class="text-end">Hành động</th>
+            </tr>
+        </thead>
+        <tbody id="users-table-body">
+            {% for user in users %}
+            <tr>
+                {% if current_user.is_super_admin() %}
+                <td class="text-center">
+                    {# Không cho phép chọn chính mình hoặc super admin cuối cùng #}
+                    {% if user.id != current_user.id and not (user.is_super_admin() and users|selectattr('role', 'equalto', 'super_admin')|list|length <= 1) %}
+                    <input class="form-check-input user-row-checkbox" type="checkbox" value="{{ user.id }}">
+                    {% else %}
+                    <input class="form-check-input" type="checkbox" disabled>
+                    {% endif %}
+                </td>
+                {% endif %}
+                <td><strong>{{ user.username }}</strong></td>
+                <td>
+                    <span class="badge 
+                        {% if user.is_super_admin() %}bg-danger
+                        {% elif user.is_admin() %}bg-primary
+                        {% else %}bg-secondary
+                        {% endif %}">
+                        {{ user.role.replace('_', ' ').title() }}
+                    </span>
+                </td>
+                <td>
+                    {% if user.parent %}
+                        <span class="badge bg-info text-dark">{{ user.parent.username }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Không có</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge {% if user.is_active %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                        {{ 'Kích hoạt' if user.is_active else 'Vô hiệu hóa' }}
+                    </span>
+                </td>
+                <td>
+                    <ul class="permission-list">
+                        {% if user.is_super_admin() or user.is_admin() %}
+                            <li><span class="badge bg-success">Full quyền cơ bản</span></li>
+                        {% else %}
+                            {% if user.can_add_store %}<li><span class="badge bg-primary">Thêm/Sửa Cửa hàng</span></li>{% endif %}
+                            {% if user.can_delete_store %}<li><span class="badge bg-primary">Xóa Cửa hàng</span></li>{% endif %}
+                            {% if user.can_view_orders %}<li><span class="badge bg-primary">Xem Đơn hàng</span></li>{% endif %}
+                        {% endif %}
+                        
+                        {% if user.can_customize_telegram_delay %}<li><span class="badge bg-info text-dark">Tùy chỉnh Delay Tele</span></li>{% endif %}
+                        {% if user.can_customize_telegram_templates %}<li><span class="badge bg-info text-dark">Tùy chỉnh Template Tele</span></li>{% endif %}
+                    </ul>
+                </td>
+                <td class="text-end">
+                    <div class="d-flex justify-content-end gap-1">
+                        {% if current_user.is_super_admin() or (current_user.is_admin() and user.parent_id == current_user.id) %}
+                        <a href="{{ url_for('users.edit', user_id=user.id) }}" class="btn btn-sm btn-outline-secondary" title="Sửa">
+                            <i class="bi bi-pencil-fill"></i>
+                        </a>
+                        <form action="{{ url_for('users.delete', user_id=user.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa người dùng \'{{ user.username }}\'?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa">
+                                <i class="bi bi-trash-fill"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">Không có người dùng nào.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Chỉ chạy JS này nếu người dùng là Super Admin
+    {% if current_user.is_super_admin() %}
+    const usersTableBody = document.getElementById('users-table-body');
+    const selectAllUsersCheckbox = document.getElementById('select-all-users-checkbox');
+    const bulkActionsContainer = document.getElementById('bulk-user-actions-container');
+    const deleteSelectedBtn = document.getElementById('delete-selected-users-btn');
+    const selectedCountSpan = document.getElementById('selected-users-count');
+
+    function updateBulkActions() {
+        if (!bulkActionsContainer) return;
+
+        const checkedCheckboxes = usersTableBody.querySelectorAll('.user-row-checkbox:checked');
+        const count = checkedCheckboxes.length;
+
+        if (count > 0) {
+            bulkActionsContainer.style.display = 'block';
+            selectedCountSpan.textContent = count;
+        } else {
+            bulkActionsContainer.style.display = 'none';
+        }
+    }
+
+    selectAllUsersCheckbox.addEventListener('change', function() {
+        usersTableBody.querySelectorAll('.user-row-checkbox').forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateBulkActions();
+    });
+
+    usersTableBody.addEventListener('change', function(e) {
+        if (e.target.classList.contains('user-row-checkbox')) {
+            updateBulkActions();
+        }
+    });
+
+    deleteSelectedBtn.addEventListener('click', function() {
+        const checkedboxes = usersTableBody.querySelectorAll('.user-row-checkbox:checked');
+        const idsToDelete = Array.from(checkedboxes).map(cb => cb.value);
+
+        if (idsToDelete.length === 0) return;
+
+        if (confirm(`Bạn có chắc muốn xóa vĩnh viễn ${idsToDelete.length} người dùng đã chọn?`)) {
+            fetch("{{ url_for('users.delete_selected') }}", {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ids: idsToDelete })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert('Lỗi khi xóa: ' + data.message);
+                }
+            });
+        }
+    });
+
+    // Cập nhật trạng thái ban đầu khi tải trang
+    updateBulkActions();
+    {% endif %}
+});
+</script>
+{% endblock %}

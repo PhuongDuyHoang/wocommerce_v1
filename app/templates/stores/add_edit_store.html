@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form action="" method="post" novalidate>
+                    {{ form.hidden_tag() }} {# Chống tấn công CSRF #}
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control", placeholder="Ví dụ: Cửa hàng thời trang") }}
+                        {% for error in form.name.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.store_url.label(class="form-label") }}
+                        {{ form.store_url(class="form-control", placeholder="https://example.com") }}
+                        <div class="form-text">Nhập URL đầy đủ của trang web WooCommerce.</div>
+                        {% for error in form.store_url.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.consumer_key.label(class="form-label") }}
+                            {{ form.consumer_key(class="form-control", placeholder="ck_...") }}
+                             {% for error in form.consumer_key.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.consumer_secret.label(class="form-label") }}
+                            {{ form.consumer_secret(class="form-control", placeholder="cs_...") }}
+                             {% for error in form.consumer_secret.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.note.label(class="form-label") }}
+                        {{ form.note(class="form-control", placeholder="Thêm ghi chú nếu cần...") }}
+                        {% for error in form.note.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    {# Trường gán người dùng chỉ hiển thị cho Admin và Super Admin #}
+                    {% if (current_user.is_super_admin() or current_user.is_admin()) and form.user_id %}
+                    <div class="mb-3">
+                        {{ form.user_id.label(class="form-label") }}
+                        {{ form.user_id(class="form-select") }}
+                        <div class="form-text">Chọn người dùng sẽ quản lý cửa hàng này.</div>
+                        {% for error in form.user_id.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <a href="{{ url_for('stores.manage') }}" class="btn btn-secondary">Hủy</a>
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
