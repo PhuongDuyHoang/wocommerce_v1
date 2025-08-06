@@ -8,9 +8,8 @@
     }
     .table td { 
         vertical-align: middle;
-        /* MODIFIED: Added word-wrap to force long words to break and prevent overflow */
-        word-wrap: break-word;
-        word-break: break-all; /* For even more aggressive breaking */
+        overflow-wrap: break-word;
+        word-break: break-word;
     }
     .product-list { 
         list-style-type: none; 
@@ -73,6 +72,54 @@
         height: auto;
         border-radius: 8px;
     }
+
+    /* === SỬA LỖI: Tối ưu hóa ô ghi chú (phiên bản cuối) === */
+    .td-note-cell {
+        position: relative; /* Làm anchor cho wrapper */
+        padding: 0 !important;
+    }
+    .note-wrapper {
+        position: absolute; /* Chiếm 100% không gian của ô */
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .order-note-textarea {
+        flex-grow: 1; /* Co giãn lấp đầy không gian */
+        width: 100%;
+        border: none;
+        border-radius: 0;
+        resize: none;
+        background-color: transparent;
+        padding: 8px;
+        transition: background-color 0.2s ease-in-out;
+    }
+    .order-note-textarea:hover {
+        background-color: #f8f9fa;
+    }
+    .order-note-textarea:focus {
+        background-color: #fff;
+        box-shadow: inset 0 0 0 2px #0d6efd;
+    }
+    .save-status {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        font-size: 0.7em;
+        padding: 2px 5px;
+        border-radius: 4px;
+        color: white;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+        pointer-events: none;
+    }
+    .save-status.show { opacity: 1; }
+    .save-status.saving { background-color: #0dcaf0; }
+    .save-status.saved { background-color: #198754; }
+    .save-status.error { background-color: #dc3545; }
 </style>
 {% endblock %}
 
@@ -110,33 +157,37 @@
             {% for order in orders %}
             <tr>
                 {% for column in columns_config if column.visible and column.key != 'image' %}
-                    {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}
+                    {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}
+                    {% else %}
                         <td class="
                             {% if column.type == 'currency' %}text-end fw-bold{% endif %}
                             {% if column.key == 'wc_order_id' %}fw-bold{% endif %}
                             {% if column.type == 'datetime' %}small text-nowrap{% endif %}
+                            {% if column.key == 'note' %}td-note-cell{% endif %}
                         ">
-                            {% if column.key == 'order_created_at' and order.order_created_at %}
+                            {% if column.key == 'note' %}
+                                <div class="note-wrapper">
+                                    <textarea class="order-note-textarea" 
+                                              data-order-id="{{ order.id }}" 
+                                              data-original-value="{{ order.note or '' }}"
+                                              placeholder="Thêm ghi chú...">{{ order.note or '' }}</textarea>
+                                    <div class="save-status"></div>
+                                </div>
+                            {% elif column.key == 'order_created_at' and order.order_created_at %}
                                 {{ order.order_created_at.strftime('%d-%m-%Y %H:%M') }}
-                            
                             {% elif column.key == 'store_name' %}
                                 <div class="text-truncate" title="{{ order.store.name }}">
                                     <a href="{{ url_for('stores.edit', store_id=order.store.id) }}">{{ order.store.name }}</a>
                                 </div>
-                            
                             {% elif column.key == 'owner_username' %}
                                 {% if order.owner_username != 'Chưa gán' %}<span class="badge bg-info text-dark">{{ order.owner_username }}</span>{% else %}<span class="badge bg-secondary">Chưa gán</span>{% endif %}
-                            
                             {% elif column.key == 'wc_order_id' %}
                                 #{{ order.wc_order_id }}
-                            
-                            {% elif column.key == 'total' or column.key == 'shipping_total' %}
+                            {% elif column.type == 'currency' %}
                                 ${{ "{:,.2f}".format(order[column.key] or 0) }}
-                            
                             {% elif column.key == 'status' %}
                                 {% set status_map = {'processing': 'bg-primary','completed': 'bg-success','on-hold': 'bg-warning text-dark','pending': 'bg-secondary','cancelled': 'bg-danger','refunded': 'bg-dark','failed': 'bg-danger'} %}
                                 <span class="badge {{ status_map.get(order.status, 'bg-light text-dark') }}">{{ order.status }}</span>
-                            
                             {% elif column.key == 'products' %}
                                 <ul class="product-list">
                                 {% for item in order.line_items %}
@@ -148,7 +199,6 @@
                                         {% else %}
                                             <div class="product-image-placeholder"></div>
                                         {% endif %}
-                                        
                                         <div>
                                             <strong class="d-block" title="{{ item.product_name }}">{{ item.product_name }}</strong>
                                             <span>(SL: {{ item.quantity }})</span>
@@ -161,10 +211,9 @@
                                     </li>
                                 {% endfor %}
                                 </ul>
-                            
                             {% else %}
-                                <div title="{{ order[column.key] }}">
-                                    {{ order[column.key] }}
+                                <div title="{{ order[column.key] or '' }}">
+                                    {{ order[column.key] or '' }}
                                 </div>
                             {% endif %}
                         </td>
@@ -172,9 +221,14 @@
                 {% endfor %}
             </tr>
             {% else %}
-            {% set visible_columns = columns_config | selectattr('visible') | rejectattr('key', 'equalto', 'image') | list %}
-            {% set colspan = visible_columns|length %}{% if not (current_user.is_super_admin() or current_user.is_admin()) %}{% for col in visible_columns if col.key == 'owner_username' %}{% set colspan = colspan - 1 %}{% endfor %}{% endif %}
-            <tr><td colspan="{{ colspan }}" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào phù hợp với bộ lọc.</td></tr>
+                {% set visible_columns = columns_config | selectattr('visible') | rejectattr('key', 'equalto', 'image') | list %}
+                {% set colspan = visible_columns|length %}
+                {% if not (current_user.is_super_admin() or current_user.is_admin()) %}
+                    {% for col in visible_columns if col.key == 'owner_username' %}
+                        {% set colspan = colspan - 1 %}
+                    {% endfor %}
+                {% endif %}
+                <tr><td colspan="{{ colspan }}" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào phù hợp với bộ lọc.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -214,6 +268,55 @@ document.addEventListener('DOMContentLoaded', function() {
             modalImage.src = largeImageUrl;
         });
     }
+
+    const noteTextareas = document.querySelectorAll('.order-note-textarea');
+    noteTextareas.forEach(textarea => {
+        textarea.addEventListener('blur', function() {
+            const orderId = this.dataset.orderId;
+            const originalValue = this.dataset.originalValue;
+            const newValue = this.value;
+            const statusDiv = this.parentElement.querySelector('.save-status');
+
+            if (originalValue.trim() === newValue.trim()) {
+                return;
+            }
+
+            statusDiv.textContent = 'Đang lưu...';
+            statusDiv.className = 'save-status saving show';
+
+            fetch(`/orders/update_note/${orderId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ note: newValue })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    this.dataset.originalValue = newValue;
+                    statusDiv.textContent = 'Đã lưu!';
+                    statusDiv.className = 'save-status saved show';
+                } else {
+                    throw new Error(data.message);
+                }
+            })
+            .catch(error => {
+                statusDiv.textContent = 'Lỗi!';
+                statusDiv.className = 'save-status error show';
+                this.value = originalValue;
+                alert('Lỗi khi lưu ghi chú: ' + (error.message || 'Lỗi mạng, không thể kết nối đến server.'));
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    statusDiv.classList.remove('show');
+                }, 2000);
+            });
+        });
+    });
 });
 </script>
 {% endblock %}

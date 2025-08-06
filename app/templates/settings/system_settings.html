@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tableSettingsForm = document.getElementById('table-settings-form');
     if (tableSettingsForm) {
         const columnList = document.getElementById('column-list');
-        const hiddenInput = document.getElementById('table-order_table_columns');
+        const hiddenInput = document.getElementById('order_table_columns');
         
         if (columnList && hiddenInput) {
             new Sortable(columnList, { handle: '.drag-handle', animation: 150 });

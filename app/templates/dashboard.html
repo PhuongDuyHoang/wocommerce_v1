@@ -5,8 +5,7 @@
     <h1 class="h2">{{ title }}</h1>
 </div>
 
-<form id="statistics-form" action="{{ url_for('dashboard') }}" method="GET" class="mb-4">
-    <div class="card shadow-sm">
+<form id="statistics-form" action="{{ url_for('main.dashboard') }}" method="GET" class="mb-4"> <div class="card shadow-sm">
         <div class="card-body">
             <div class="row g-3 align-items-end">
                 {% if current_user.is_super_admin() %}
@@ -33,8 +32,7 @@
                 {% endif %}
                 <div class="col-md-2"><label for="start_date" class="form-label">Từ ngày:</label><input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date or '' }}"></div>
                 <div class="col-md-2"><label for="end_date" class="form-label">Đến ngày:</label><input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date or '' }}"></div>
-                <div class="col-md-auto ms-auto"><div class="d-flex justify-content-end gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div>
-            </div>
+                <div class="col-md-auto ms-auto"><div class="d-flex justify-content-end gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div> </div>
         </div>
     </div>
 </form>

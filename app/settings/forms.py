@@ -15,7 +15,6 @@ class SystemTelegramForm(FlaskForm):
         validators=[DataRequired(), NumberRange(min=0)],
         default=2
     )
-    # MODIFIED: Changed variable name from 'submit' to 'submit_telegram'
     submit_telegram = SubmitField('Lưu Cài đặt Telegram')
 
 
@@ -27,14 +26,12 @@ class SystemWorkerForm(FlaskForm):
         default=5
     )
     fetch_product_images = BooleanField('Tự động lấy ảnh sản phẩm khi đồng bộ')
-    # MODIFIED: Changed variable name from 'submit' to 'submit_worker'
     submit_worker = SubmitField('Lưu Cài đặt Worker')
 
 
 class SystemTableForm(FlaskForm):
     """Form để lưu cấu hình bảng đơn hàng."""
     order_table_columns = HiddenField('Cấu hình cột bảng đơn hàng', validators=[DataRequired()])
-    # MODIFIED: Changed variable name from 'submit' to 'submit_table'
     submit_table = SubmitField('Lưu Cấu hình Bảng')
 
 
@@ -50,7 +47,6 @@ class SystemTemplateForm(FlaskForm):
         validators=[DataRequired()],
         render_kw={'rows': 4}
     )
-    # MODIFIED: Changed variable name from 'submit' to 'submit_template'
     submit_template = SubmitField('Lưu Templates')
 
 
@@ -67,9 +63,8 @@ class PersonalSettingsForm(FlaskForm):
         validators=[Optional(), NumberRange(min=0)]
     )
     telegram_template_new_order = TextAreaField(
-        'Template cho đơn hàng mới (cá nhân)',
+        'Template cá nhân cho đơn hàng mới',
         validators=[Optional()],
-        render_kw={'rows': 8}
+        render_kw={'rows': 10}
     )
-
     submit = SubmitField('Lưu thay đổi')

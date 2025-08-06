@@ -12,7 +12,7 @@ def admin_or_super_admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or (not current_user.is_admin() and not current_user.is_super_admin()):
             flash('Bạn không có quyền truy cập trang này.', 'danger')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('main.dashboard')) # MODIFIED
         return f(*args, **kwargs)
     return decorated_function
 
@@ -24,7 +24,7 @@ def super_admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_super_admin():
             flash('Bạn không có quyền truy cập trang này.', 'danger')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('main.dashboard')) # MODIFIED
         return f(*args, **kwargs)
     return decorated_function
 
@@ -43,7 +43,7 @@ def can_add_store_required(f):
         # User thường cần được cấp quyền cụ thể
         if not current_user.is_authenticated or not current_user.can_add_store:
             flash('Bạn không có quyền thêm cửa hàng mới.', 'danger')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('main.dashboard')) # MODIFIED
         return f(*args, **kwargs)
     return decorated_function
 
@@ -58,6 +58,6 @@ def can_view_orders_required(f):
             return f(*args, **kwargs)
         if not current_user.is_authenticated or not current_user.can_view_orders:
             flash('Bạn không có quyền xem danh sách đơn hàng.', 'danger')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('main.dashboard')) # MODIFIED
         return f(*args, **kwargs)
     return decorated_function

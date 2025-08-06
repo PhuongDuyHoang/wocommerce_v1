@@ -64,6 +64,7 @@ class WooCommerceOrder(db.Model):
     billing_email = db.Column(db.String(255), nullable=True)
     billing_address = db.Column(db.String(500), nullable=True)
     shipping_address = db.Column(db.String(500), nullable=True)
+    note = db.Column(db.Text, nullable=True)
     line_items = db.relationship('OrderLineItem', backref='order', cascade="all, delete-orphan")
     __table_args__ = (db.UniqueConstraint('wc_order_id', 'store_id', name='_wc_order_store_uc'),)
     def __repr__(self): return f'<WooCommerceOrder ID:{self.wc_order_id} from Store ID:{self.store_id}>'
@@ -78,7 +79,7 @@ class OrderLineItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     image_url = db.Column(db.String(1000), nullable=True)
-    variations = db.Column(db.Text, nullable=True) 
+    variations = db.Column(db.Text, nullable=True)
     def __repr__(self): return f'<LineItem {self.product_name} for Order ID:{self.order_id}>'
     @property
     def variations_list(self):
@@ -94,7 +95,6 @@ class Setting(db.Model):
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.Text, nullable=True)
 
-    # --- MODIFIED: Added helper methods to get and set settings easily ---
     @classmethod
     def get_value(cls, key, default=None):
         """
@@ -109,8 +109,8 @@ class Setting(db.Model):
     @classmethod
     def set_value(cls, key, value):
         """
-        Lưu hoặc cập nhật giá trị của một cài đặt vào cơ sở dữ liệu.
-        Tự động commit thay đổi.
+        Lưu hoặc cập nhật giá trị của một cài đặt vào cơ sở dữ liệu
+        và commit thay đổi ngay lập tức.
         """
         setting = cls.query.get(key)
         if setting:
@@ -118,10 +118,9 @@ class Setting(db.Model):
         else:
             setting = cls(key=key, value=str(value))
             db.session.add(setting)
-        # Không commit ở đây để cho phép lưu nhiều setting một lúc
-        # db.session.commit()
-    # --- End of modification ---
-
+        
+        # <<< SỬA LỖI: THÊM DÒNG NÀY ĐỂ LƯU THAY ĐỔI VÀO DATABASE
+        db.session.commit()
 
 class BackgroundTask(db.Model):
     __tablename__ = 'background_task'

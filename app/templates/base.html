@@ -141,8 +141,7 @@
 
 <nav id="sidebarMenu" class="sidebar">
     <div class="sidebar-header">
-        <a class="navbar-brand d-flex align-items-center text-dark text-decoration-none" href="{{ url_for('dashboard') }}">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/WooCommerce_logo.svg/2560px-WooCommerce_logo.svg.png" alt="Logo" class="sidebar-brand-icon">
+        <a class="navbar-brand d-flex align-items-center text-dark text-decoration-none" href="{{ url_for('main.dashboard') }}"> <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/WooCommerce_logo.svg/2560px-WooCommerce_logo.svg.png" alt="Logo" class="sidebar-brand-icon">
             <span class="sidebar-brand-text ms-2 fs-5 fw-bold">PTECH</span>
         </a>
     </div>
@@ -152,8 +151,7 @@
     <div class="position-sticky pt-3">
         <ul class="nav flex-column">
              {% if current_user.is_authenticated %}
-                <li class="nav-item"><a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><i class="bi bi-bar-chart-line-fill"></i><span>Thống kê</span></a></li>
-                <li class="nav-item"><a class="nav-link {% if request.blueprint == 'orders' %}active{% endif %}" href="{{ url_for('orders.manage_all_orders') }}"><i class="bi bi-box-seam-fill"></i><span>Quản lý Đơn hàng</span></a></li>
+                <li class="nav-item"><a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}"><i class="bi bi-bar-chart-line-fill"></i><span>Thống kê</span></a></li> <li class="nav-item"><a class="nav-link {% if request.blueprint == 'orders' %}active{% endif %}" href="{{ url_for('orders.manage_all_orders') }}"><i class="bi bi-box-seam-fill"></i><span>Quản lý Đơn hàng</span></a></li>
                 <li class="nav-item"><a class="nav-link {% if request.blueprint == 'stores' %}active{% endif %}" href="{{ url_for('stores.manage') }}"><i class="bi bi-shop"></i><span>Quản lý Cửa hàng</span></a></li>
                 <li class="nav-item"><a class="nav-link {% if request.blueprint == 'jobs' %}active{% endif %}" href="{{ url_for('jobs.view') }}"><i class="bi bi-clock-history"></i><span>Tiến trình</span></a></li>
                 {% if current_user.is_super_admin() or current_user.is_admin() %}
