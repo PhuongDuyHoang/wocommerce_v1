@@ -35,31 +35,26 @@ def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bo
                     cleaned_value = re.sub(r'<.*?>', '', html.unescape(display_value)).replace('■', '').strip()
                     if cleaned_value: variation_values.append(cleaned_value)
         
-        variations_dict = {}
-        for i in range(6):
-            key = f"var{i+1}"
-            value = variation_values[i] if i < len(variation_values) else None
-            variations_dict[key] = value
+        variations_json = json.dumps(variation_values) if variation_values else None
         
-        # ### LOGIC MỚI ĐỂ LẤY ẢNH SẢN PHẨM ###
         image_url = None
         if should_fetch_images and item.get('product_id'):
             try:
-                # Gọi thêm một API call để lấy chi tiết sản phẩm
                 product_data = wcapi.get(f"products/{item.get('product_id')}").json()
                 if product_data and product_data.get('images'):
                     image_url = product_data['images'][0].get('src')
             except Exception as e:
                 print(f"Không thể lấy ảnh cho sản phẩm ID {item.get('product_id')}: {e}")
-        # ######################################
 
         line_items_data.append({
+            'wc_line_item_id': item.get('id'), # ADDED: Get the original line item ID from WC
             'product_name': item.get('name', 'N/A'),
             'quantity': item.get('quantity', 0),
             'sku': item.get('sku', 'N/A'),
             'price': float(item.get('price', 0.0)),
-            'image_url': image_url, # Thêm link ảnh vào dữ liệu
-            **variations_dict
+            'image_url': image_url,
+            'variations': variations_json,
+            'product_id': item.get('product_id') 
         })
 
     def format_address(address_dict):
@@ -86,11 +81,12 @@ def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bo
     return {'order': order_level_data, 'line_items': line_items_data}
 
 def format_products_for_notification(line_items) -> str:
+    # ... (Nội dung không đổi) ...
     if not line_items: return "- Không có sản phẩm."
     lines = []
     for item in line_items:
         line = f"\\- {item.product_name} \\(SL: {item.quantity}\\)"
-        variations = filter(None, [item.var1, item.var2, item.var3, item.var4, item.var5, item.var6])
+        variations = item.variations_list
         variations_str = ", ".join(variations)
         if variations_str:
             safe_variations = variations_str.replace('`', '\\`').replace('*', '\\*')
@@ -100,12 +96,12 @@ def format_products_for_notification(line_items) -> str:
 
 
 def check_single_store(store_id: int):
+    # ... (Nội dung không đổi, nhưng logic lưu item sẽ tự động lưu trường mới) ...
     app = current_app._get_current_object()
     with app.app_context():
         store = WooCommerceStore.query.get(store_id)
         if not store or not store.is_active: return
         
-        # Đọc cài đặt lấy ảnh từ DB
         fetch_images_setting = Setting.query.get('FETCH_PRODUCT_IMAGES')
         should_fetch_images = fetch_images_setting.value.lower() == 'true' if fetch_images_setting else False
 
@@ -129,11 +125,12 @@ def check_single_store(store_id: int):
                     new_order = WooCommerceOrder(store_id=store.id, **full_details['order'])
                     db.session.add(new_order)
                     for item_data in full_details['line_items']:
+                        item_data.pop('product_id', None) 
                         new_item = OrderLineItem(order=new_order, **item_data)
                         db.session.add(new_item)
                     db.session.commit()
 
-                    notification_data = {"store_name": store.name, "order_id": new_order.wc_order_id, "customer_name": new_order.customer_name or "Khách lẻ", "total_amount": f"${new_order.total:,.2f}", "currency": new_order.currency, "status": new_order.status, "payment_method": new_order.payment_method_title, "product_list": format_products_for_notification(new_order.line_items.all())}
+                    notification_data = {"store_name": store.name, "order_id": new_order.wc_order_id, "customer_name": new_order.customer_name or "Khách lẻ", "total_amount": f"${new_order.total:,.2f}", "currency": new_order.currency, "status": new_order.status, "payment_method": new_order.payment_method_title, "product_list": format_products_for_notification(new_order.line_items)}
                     if store.user_id:
                         asyncio.run(send_telegram_message(message_type='new_order', data=notification_data, user_id=store.user_id))
                     latest_order_time = new_order.order_created_at
@@ -152,7 +149,6 @@ def sync_history_for_store(app, store_id: int, job_id: str):
         task = BackgroundTask.query.filter_by(job_id=job_id).first()
         if not store or not task: return
 
-        # Đọc cài đặt lấy ảnh từ DB
         fetch_images_setting = Setting.query.get('FETCH_PRODUCT_IMAGES')
         should_fetch_images = fetch_images_setting.value.lower() == 'true' if fetch_images_setting else False
         
@@ -163,6 +159,8 @@ def sync_history_for_store(app, store_id: int, job_id: str):
             wcapi = API(url=store.store_url, consumer_key=store.consumer_key, consumer_secret=store.consumer_secret, version="wc/v3", timeout=30)
             page = 1
             total_synced = 0
+            images_fixed = 0
+
             while True:
                 task = BackgroundTask.query.filter_by(job_id=job_id).first()
                 if not task or task.requested_cancellation:
@@ -170,28 +168,49 @@ def sync_history_for_store(app, store_id: int, job_id: str):
                         task.status = 'cancelled'; db.session.commit()
                     return
 
-                task.log = f"Đang lấy trang {page} (Lấy ảnh: {'Bật' if should_fetch_images else 'Tắt'})..."
+                task.log = f"Đang lấy trang {page} (Lấy ảnh: {'Bật' if should_fetch_images else 'Tắt'}). Đã sửa: {images_fixed} ảnh."
                 db.session.commit()
-                orders_page = wcapi.get("orders", params={'per_page': 100, 'page': page}).json()
+                orders_page = wcapi.get("orders", params={'per_page': 50, 'page': page}).json()
                 if not orders_page: break
 
                 for order_data in orders_page:
-                    if not WooCommerceOrder.query.filter_by(wc_order_id=order_data['id'], store_id=store.id).first():
-                        full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
+                    full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
+                    existing_order = WooCommerceOrder.query.filter_by(wc_order_id=order_data['id'], store_id=store.id).first()
+                    
+                    if not existing_order:
+                        # Case 1: New order, create it
                         history_order = WooCommerceOrder(store_id=store.id, **full_details['order'])
                         db.session.add(history_order)
                         for item_data in full_details['line_items']:
+                            item_data.pop('product_id', None)
                             new_item = OrderLineItem(order=history_order, **item_data)
                             db.session.add(new_item)
                         total_synced += 1
-                
+                    
+                    elif should_fetch_images:
+                        # Case 2: Existing order, check for missing images
+                        api_line_items = {item['wc_line_item_id']: item for item in full_details['line_items']}
+                        
+                        for line_item_db in existing_order.line_items:
+                            if not line_item_db.image_url:
+                                # MODIFIED: Match using the correct wc_line_item_id
+                                api_item = api_line_items.get(line_item_db.wc_line_item_id)
+                                if api_item and api_item.get('product_id'):
+                                    try:
+                                        product_data = wcapi.get(f"products/{api_item.get('product_id')}").json()
+                                        if product_data and product_data.get('images'):
+                                            line_item_db.image_url = product_data['images'][0].get('src')
+                                            images_fixed += 1
+                                    except Exception as e:
+                                        print(f"Không thể lấy ảnh cho sản phẩm ID {api_item.get('product_id')} (sửa lỗi): {e}")
+
                 db.session.commit()
                 task.progress = total_synced
                 db.session.commit()
                 page += 1
 
             task.status = 'complete'
-            task.log = f"Đồng bộ hoàn tất! Đã thêm {total_synced} đơn hàng mới."
+            task.log = f"Hoàn tất! Đã thêm {total_synced} đơn hàng mới và sửa {images_fixed} ảnh bị thiếu."
             task.total = total_synced
             task.end_time = datetime.utcnow()
             db.session.commit()
@@ -206,6 +225,7 @@ def sync_history_for_store(app, store_id: int, job_id: str):
             db.session.rollback()
 
 def check_all_stores_job():
+    # ... (Nội dung không đổi) ...
     app = current_app._get_current_object()
     with app.app_context():
         print(f"\n--- Bắt đầu phiên kiểm tra đơn hàng định kỳ [{datetime.now()}] ---")
@@ -215,6 +235,7 @@ def check_all_stores_job():
         print(f"--- Hoàn tất phiên kiểm tra định kỳ ---")
 
 def init_scheduler(app):
+    # ... (Nội dung không đổi) ...
     global scheduler
     with app.app_context():
         if scheduler.running: scheduler.shutdown(wait=False)

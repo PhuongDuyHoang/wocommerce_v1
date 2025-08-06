@@ -3,8 +3,10 @@ from . import db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+import json
 
 class AppUser(UserMixin, db.Model):
+    # ... (Nội dung không đổi) ...
     __tablename__ = 'app_user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), index=True, unique=True, nullable=False)
@@ -32,6 +34,7 @@ class AppUser(UserMixin, db.Model):
     def is_admin(self): return self.role == 'admin'
 
 class WooCommerceStore(db.Model):
+    # ... (Nội dung không đổi) ...
     __tablename__ = 'woocommerce_store'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -47,6 +50,7 @@ class WooCommerceStore(db.Model):
     def __repr__(self): return f'<WooCommerceStore {self.name}>'
 
 class WooCommerceOrder(db.Model):
+    # ... (Nội dung không đổi) ...
     __tablename__ = 'woocommerce_order'
     id = db.Column(db.Integer, primary_key=True)
     wc_order_id = db.Column(db.Integer, nullable=False, index=True)
@@ -63,38 +67,40 @@ class WooCommerceOrder(db.Model):
     billing_email = db.Column(db.String(255), nullable=True)
     billing_address = db.Column(db.String(500), nullable=True)
     shipping_address = db.Column(db.String(500), nullable=True)
-    line_items = db.relationship('OrderLineItem', backref='order', lazy='dynamic', cascade="all, delete-orphan")
+    line_items = db.relationship('OrderLineItem', backref='order', cascade="all, delete-orphan")
     __table_args__ = (db.UniqueConstraint('wc_order_id', 'store_id', name='_wc_order_store_uc'),)
     def __repr__(self): return f'<WooCommerceOrder ID:{self.wc_order_id} from Store ID:{self.store_id}>'
 
 class OrderLineItem(db.Model):
     __tablename__ = 'order_line_item'
     id = db.Column(db.Integer, primary_key=True)
+    # ADDED: Column to store the original line item ID from WooCommerce for reliable matching
+    wc_line_item_id = db.Column(db.Integer, nullable=False, index=True)
     order_id = db.Column(db.Integer, db.ForeignKey('woocommerce_order.id'), nullable=False)
     product_name = db.Column(db.String(500), nullable=False)
     sku = db.Column(db.String(100), nullable=True)
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
-    
-    # ### THÊM CỘT MỚI ĐỂ LƯU LINK ẢNH ###
     image_url = db.Column(db.String(1000), nullable=True)
-    # ######################################
-
-    var1 = db.Column(db.String(255), nullable=True)
-    var2 = db.Column(db.String(255), nullable=True)
-    var3 = db.Column(db.String(255), nullable=True)
-    var4 = db.Column(db.String(255), nullable=True)
-    var5 = db.Column(db.String(255), nullable=True)
-    var6 = db.Column(db.String(255), nullable=True)
-    
+    variations = db.Column(db.Text, nullable=True) 
     def __repr__(self): return f'<LineItem {self.product_name} for Order ID:{self.order_id}>'
+    @property
+    def variations_list(self):
+        if not self.variations:
+            return []
+        try:
+            return json.loads(self.variations)
+        except json.JSONDecodeError:
+            return []
 
 class Setting(db.Model):
+    # ... (Nội dung không đổi) ...
     __tablename__ = 'setting'
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.Text, nullable=True)
 
 class BackgroundTask(db.Model):
+    # ... (Nội dung không đổi) ...
     __tablename__ = 'background_task'
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.String(36), index=True, unique=True, nullable=False)

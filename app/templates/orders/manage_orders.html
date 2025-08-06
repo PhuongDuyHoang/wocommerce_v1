@@ -2,8 +2,15 @@
 
 {% block styles %}
 <style>
-    .table td, .table th { 
-        vertical-align: middle; 
+    .table th {
+        vertical-align: middle;
+        text-align: center; 
+    }
+    .table td { 
+        vertical-align: middle;
+        /* MODIFIED: Added word-wrap to force long words to break and prevent overflow */
+        word-wrap: break-word;
+        word-break: break-all; /* For even more aggressive breaking */
     }
     .product-list { 
         list-style-type: none; 
@@ -31,12 +38,6 @@
     .sku-text {
         font-weight: 500;
         color: #495057;
-    }
-    .long-text-cell div {
-        max-width: 250px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
     .product-image {
         width: 80px;
@@ -95,13 +96,12 @@
 </div>
 
 <div class="table-responsive">
-    <table class="table table-hover table-bordered table-sm">
+    <table class="table table-hover table-bordered table-sm" style="table-layout: fixed;">
         <thead class="table-light">
             <tr>
-                {# ### THAY ĐỔI 1: BỔ SUNG `and column.key != 'image'` ĐỂ LOẠI BỎ CỘT ẢNH KHỎI TIÊU ĐỀ ### #}
                 {% for column in columns_config if column.visible and column.key != 'image' %}
                     {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}
-                        <th>{{ column.label }}</th>
+                        <th style="width: {{ column.width or 'auto' }};">{{ column.label }}</th>
                     {% endif %}
                 {% endfor %}
             </tr>
@@ -109,25 +109,30 @@
         <tbody>
             {% for order in orders %}
             <tr>
-                {# ### THAY ĐỔI 2: BỔ SUNG `and column.key != 'image'` ĐỂ LOẠI BỎ CỘT ẢNH KHỎI THÂN BẢNG ### #}
                 {% for column in columns_config if column.visible and column.key != 'image' %}
                     {% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}
                         <td class="
                             {% if column.type == 'currency' %}text-end fw-bold{% endif %}
                             {% if column.key == 'wc_order_id' %}fw-bold{% endif %}
-                            {% if column.type == 'datetime' %}small{% endif %}
-                            {% if column.type == 'text_long' %}long-text-cell{% endif %}
+                            {% if column.type == 'datetime' %}small text-nowrap{% endif %}
                         ">
                             {% if column.key == 'order_created_at' and order.order_created_at %}
                                 {{ order.order_created_at.strftime('%d-%m-%Y %H:%M') }}
+                            
                             {% elif column.key == 'store_name' %}
-                                <a href="{{ url_for('stores.edit', store_id=order.store_id) }}" title="{{ order.store_name }}">{{ order.store_name }}</a>
+                                <div class="text-truncate" title="{{ order.store.name }}">
+                                    <a href="{{ url_for('stores.edit', store_id=order.store.id) }}">{{ order.store.name }}</a>
+                                </div>
+                            
                             {% elif column.key == 'owner_username' %}
                                 {% if order.owner_username != 'Chưa gán' %}<span class="badge bg-info text-dark">{{ order.owner_username }}</span>{% else %}<span class="badge bg-secondary">Chưa gán</span>{% endif %}
+                            
                             {% elif column.key == 'wc_order_id' %}
                                 #{{ order.wc_order_id }}
+                            
                             {% elif column.key == 'total' or column.key == 'shipping_total' %}
                                 ${{ "{:,.2f}".format(order[column.key] or 0) }}
+                            
                             {% elif column.key == 'status' %}
                                 {% set status_map = {'processing': 'bg-primary','completed': 'bg-success','on-hold': 'bg-warning text-dark','pending': 'bg-secondary','cancelled': 'bg-danger','refunded': 'bg-dark','failed': 'bg-danger'} %}
                                 <span class="badge {{ status_map.get(order.status, 'bg-light text-dark') }}">{{ order.status }}</span>
@@ -145,9 +150,10 @@
                                         {% endif %}
                                         
                                         <div>
-                                            <strong>{{ item.product_name }}</strong> (SL: {{ item.quantity }})
+                                            <strong class="d-block" title="{{ item.product_name }}">{{ item.product_name }}</strong>
+                                            <span>(SL: {{ item.quantity }})</span>
                                             <br><span class="sku-text">SKU: {{ item.sku or 'N/A' }}</span>
-                                            {% set variations = [item.var1, item.var2, item.var3, item.var4, item.var5, item.var6] | select('!=', None) | list %}
+                                            {% set variations = item.variations_list %}
                                             {% if variations %}
                                             <br><span class="variations-text">{{ variations | join(' | ') }}</span>
                                             {% endif %}
@@ -155,10 +161,11 @@
                                     </li>
                                 {% endfor %}
                                 </ul>
-                            {% elif column.type == 'text_long' %}
-                                <div title="{{ order[column.key] }}">{{ order[column.key] }}</div>
+                            
                             {% else %}
-                                {{ order[column.key] }}
+                                <div title="{{ order[column.key] }}">
+                                    {{ order[column.key] }}
+                                </div>
                             {% endif %}
                         </td>
                     {% endif %}
