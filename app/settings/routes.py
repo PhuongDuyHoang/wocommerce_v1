@@ -18,15 +18,13 @@ import asyncio
 @login_required
 @super_admin_required
 def system():
-    # Khởi tạo tất cả các form với prefix để WTForms tự tạo name riêng biệt
+    # ... (Nội dung hàm system() không thay đổi, chỉ các lời gọi hàm bên dưới) ...
     telegram_form = TelegramSettingsForm(prefix='telegram')
     worker_form = WorkerSettingsForm(prefix='worker')
     table_form = OrderTableSettingsForm(prefix='table')
     template_form = TemplateSettingsForm(prefix='template')
 
-    # MODIFIED: Check for the WTForms-generated name (prefix-fieldname)
     if request.method == 'POST':
-        # Check which form was submitted by looking for its submit button's name
         if 'telegram-submit' in request.form and telegram_form.validate_on_submit():
             save_setting('TELEGRAM_BOT_TOKEN', telegram_form.telegram_bot_token.data or '')
             save_setting('TELEGRAM_CHAT_ID', telegram_form.telegram_chat_id.data or '')
@@ -38,13 +36,14 @@ def system():
             old_interval = old_interval_setting.value if old_interval_setting else None
             new_interval = worker_form.check_interval_minutes.data
             
-            if old_interval and old_interval != str(new_interval):
-                 worker.init_scheduler(current_app._get_current_object())
-                 flash(f'Đã cập nhật chu kỳ Worker thành {new_interval} phút.', 'info')
-            
             save_setting('CHECK_INTERVAL_MINUTES', new_interval)
             save_setting('FETCH_PRODUCT_IMAGES', worker_form.fetch_product_images.data)
-            flash('Đã lưu cài đặt Worker & Dữ liệu!', 'success')
+            
+            if old_interval and old_interval != str(new_interval):
+                 worker.init_scheduler(current_app._get_current_object())
+                 flash(f'Đã cập nhật chu kỳ Worker thành {new_interval} phút và khởi động lại.', 'info')
+            else:
+                flash('Đã lưu cài đặt Worker & Dữ liệu!', 'success')
 
         elif 'table-submit' in request.form and table_form.validate_on_submit():
             save_setting('ORDER_TABLE_COLUMNS', table_form.order_table_columns.data)
@@ -57,7 +56,6 @@ def system():
             
         return redirect(url_for('settings.system'))
 
-    # Process GET request to populate forms with data from DB
     settings = {s.key: s.value for s in Setting.query.all()}
     
     telegram_form.telegram_bot_token.data = settings.get('TELEGRAM_BOT_TOKEN')
@@ -98,7 +96,7 @@ def system():
     )
 
 def save_setting(key, value):
-    """Helper function to save a setting to the DB."""
+    # ... (Nội dung không đổi) ...
     setting = Setting.query.get(key.upper())
     str_value = str(value)
     if setting:
@@ -109,7 +107,7 @@ def save_setting(key, value):
     db.session.commit()
 
 def get_or_create_column_config(default_columns):
-    """Helper function to get or create/update the column configuration."""
+    # ... (Nội dung không đổi) ...
     setting = Setting.query.get('ORDER_TABLE_COLUMNS')
     if not setting or not setting.value:
         config = default_columns
@@ -142,6 +140,7 @@ def get_or_create_column_config(default_columns):
 @login_required
 @super_admin_required
 def toggle_registration():
+    # ... (Nội dung không đổi) ...
     setting = Setting.query.get('ENABLE_REGISTRATION')
     if not setting:
         db.session.add(Setting(key='ENABLE_REGISTRATION', value='false'))
@@ -158,13 +157,16 @@ def toggle_registration():
 @login_required
 @super_admin_required
 def test_system_telegram():
-    asyncio.run(send_telegram_message(message_type='system_test', data={}, user_id=current_user.id))
+    # MODIFIED: Pass the current_app object to the async function
+    app = current_app._get_current_object()
+    asyncio.run(send_telegram_message(app, message_type='system_test', data={}, user_id=current_user.id))
     flash('Đã gửi tin nhắn thử đến kênh hệ thống.', 'info')
     return redirect(url_for('settings.system'))
 
 @settings_bp.route('/personal', methods=['GET', 'POST'])
 @login_required
 def personal():
+    # ... (Nội dung không đổi) ...
     form = UserSettingsForm()
     if form.validate_on_submit():
         current_user.telegram_bot_token = form.telegram_bot_token.data
@@ -196,6 +198,8 @@ def test_personal_telegram():
         flash('Vui lòng bật và điền Chat ID Telegram cá nhân trước khi thử.', 'warning')
         return redirect(url_for('settings.personal'))
         
-    asyncio.run(send_telegram_message(message_type='user_test', data={}, user_id=current_user.id))
+    # MODIFIED: Pass the current_app object to the async function
+    app = current_app._get_current_object()
+    asyncio.run(send_telegram_message(app, message_type='user_test', data={}, user_id=current_user.id))
     flash('Đã gửi tin nhắn thử đến kênh cá nhân của bạn.', 'info')
     return redirect(url_for('settings.personal'))

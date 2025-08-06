@@ -11,19 +11,15 @@ from concurrent.futures import ThreadPoolExecutor
 import html
 import re
 
-from . import db
+from app import db
 from .models import WooCommerceStore, WooCommerceOrder, Setting, BackgroundTask, OrderLineItem
 from .notifications import send_telegram_message
 
-scheduler = BackgroundScheduler(daemon=True)
-executor = ThreadPoolExecutor(max_workers=5)
-
+scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
+executor = ThreadPoolExecutor(max_workers=2)
 
 def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bool) -> dict:
-    """
-    Hàm phụ trợ để trích xuất và chuẩn hóa toàn bộ chi tiết từ dữ liệu JSON của một đơn hàng.
-    """
-    
+    # ... (Nội dung không đổi)
     line_items_data = []
     for item in order_data.get('line_items', []):
         variation_values = []
@@ -47,7 +43,7 @@ def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bo
                 print(f"Không thể lấy ảnh cho sản phẩm ID {item.get('product_id')}: {e}")
 
         line_items_data.append({
-            'wc_line_item_id': item.get('id'), # ADDED: Get the original line item ID from WC
+            'wc_line_item_id': item.get('id'),
             'product_name': item.get('name', 'N/A'),
             'quantity': item.get('quantity', 0),
             'sku': item.get('sku', 'N/A'),
@@ -81,7 +77,7 @@ def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bo
     return {'order': order_level_data, 'line_items': line_items_data}
 
 def format_products_for_notification(line_items) -> str:
-    # ... (Nội dung không đổi) ...
+    # ... (Nội dung không đổi)
     if not line_items: return "- Không có sản phẩm."
     lines = []
     for item in line_items:
@@ -94,56 +90,8 @@ def format_products_for_notification(line_items) -> str:
         lines.append(line)
     return "\n".join(lines)
 
-
-def check_single_store(store_id: int):
-    # ... (Nội dung không đổi, nhưng logic lưu item sẽ tự động lưu trường mới) ...
-    app = current_app._get_current_object()
-    with app.app_context():
-        store = WooCommerceStore.query.get(store_id)
-        if not store or not store.is_active: return
-        
-        fetch_images_setting = Setting.query.get('FETCH_PRODUCT_IMAGES')
-        should_fetch_images = fetch_images_setting.value.lower() == 'true' if fetch_images_setting else False
-
-        print(f"Bắt đầu kiểm tra đơn hàng MỚI cho: '{store.name}' (Lấy ảnh: {should_fetch_images})")
-        try:
-            wcapi = API(url=store.store_url, consumer_key=store.consumer_key, consumer_secret=store.consumer_secret, version="wc/v3", timeout=20)
-            params = {'orderby': 'date', 'order': 'asc'}
-            if store.last_notified_order_timestamp:
-                params['after'] = (store.last_notified_order_timestamp + timedelta(seconds=1)).isoformat()
-            
-            new_orders_response = wcapi.get("orders", params=params).json()
-            if not new_orders_response:
-                store.last_checked = datetime.now(timezone.utc)
-                db.session.commit()
-                return
-            
-            latest_order_time = None
-            for order_data in new_orders_response:
-                if not WooCommerceOrder.query.filter_by(wc_order_id=order_data['id'], store_id=store.id).first():
-                    full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
-                    new_order = WooCommerceOrder(store_id=store.id, **full_details['order'])
-                    db.session.add(new_order)
-                    for item_data in full_details['line_items']:
-                        item_data.pop('product_id', None) 
-                        new_item = OrderLineItem(order=new_order, **item_data)
-                        db.session.add(new_item)
-                    db.session.commit()
-
-                    notification_data = {"store_name": store.name, "order_id": new_order.wc_order_id, "customer_name": new_order.customer_name or "Khách lẻ", "total_amount": f"${new_order.total:,.2f}", "currency": new_order.currency, "status": new_order.status, "payment_method": new_order.payment_method_title, "product_list": format_products_for_notification(new_order.line_items)}
-                    if store.user_id:
-                        asyncio.run(send_telegram_message(message_type='new_order', data=notification_data, user_id=store.user_id))
-                    latest_order_time = new_order.order_created_at
-            
-            if latest_order_time: store.last_notified_order_timestamp = latest_order_time
-            store.last_checked = datetime.now(timezone.utc)
-            db.session.commit()
-        except Exception as e:
-            print(f"LỖI khi kiểm tra đơn hàng mới cho '{store.name}': {e}")
-            db.session.rollback()
-
-
 def sync_history_for_store(app, store_id: int, job_id: str):
+    # ... (Nội dung không đổi)
     with app.app_context():
         store = WooCommerceStore.query.get(store_id)
         task = BackgroundTask.query.filter_by(job_id=job_id).first()
@@ -178,7 +126,6 @@ def sync_history_for_store(app, store_id: int, job_id: str):
                     existing_order = WooCommerceOrder.query.filter_by(wc_order_id=order_data['id'], store_id=store.id).first()
                     
                     if not existing_order:
-                        # Case 1: New order, create it
                         history_order = WooCommerceOrder(store_id=store.id, **full_details['order'])
                         db.session.add(history_order)
                         for item_data in full_details['line_items']:
@@ -188,12 +135,10 @@ def sync_history_for_store(app, store_id: int, job_id: str):
                         total_synced += 1
                     
                     elif should_fetch_images:
-                        # Case 2: Existing order, check for missing images
                         api_line_items = {item['wc_line_item_id']: item for item in full_details['line_items']}
                         
                         for line_item_db in existing_order.line_items:
                             if not line_item_db.image_url:
-                                # MODIFIED: Match using the correct wc_line_item_id
                                 api_item = api_line_items.get(line_item_db.wc_line_item_id)
                                 if api_item and api_item.get('product_id'):
                                     try:
@@ -224,25 +169,126 @@ def sync_history_for_store(app, store_id: int, job_id: str):
                 db.session.commit()
             db.session.rollback()
 
-def check_all_stores_job():
-    # ... (Nội dung không đổi) ...
-    app = current_app._get_current_object()
+def check_single_store_job(app, store_id):
+    """Tác vụ chạy nền cho MỘT cửa hàng duy nhất."""
     with app.app_context():
-        print(f"\n--- Bắt đầu phiên kiểm tra đơn hàng định kỳ [{datetime.now()}] ---")
-        for store in WooCommerceStore.query.filter_by(is_active=True).all():
-            try: check_single_store(store.id)
-            except Exception as e: print(f"Lỗi không mong muốn khi gọi check_single_store cho ID {store.id}: {e}")
-        print(f"--- Hoàn tất phiên kiểm tra định kỳ ---")
+        store = db.session.get(WooCommerceStore, store_id)
+        if not store or not store.is_active:
+            # print(f"Bỏ qua kiểm tra cho cửa hàng ID {store_id} vì không hoạt động.")
+            return
 
-def init_scheduler(app):
-    # ... (Nội dung không đổi) ...
-    global scheduler
+        print(f"--- Bắt đầu kiểm tra đơn hàng cho: '{store.name}' ---")
+        
+        latest_order_time = None
+        
+        try:
+            setting = db.session.get(Setting, 'FETCH_PRODUCT_IMAGES')
+            should_fetch_images = setting.value.lower() == 'true' if setting else False
+            
+            wcapi = API(url=store.store_url, consumer_key=store.consumer_key, consumer_secret=store.consumer_secret, version="wc/v3", timeout=20)
+            params = {'orderby': 'date', 'order': 'asc'}
+            if store.last_notified_order_timestamp:
+                params['after'] = (store.last_notified_order_timestamp + timedelta(seconds=1)).isoformat()
+            
+            new_orders_response = wcapi.get("orders", params=params).json()
+            
+            if not isinstance(new_orders_response, list):
+                print(f"Lỗi API cho '{store.name}': {new_orders_response.get('message', 'Không rõ')}")
+                return
+
+            if not new_orders_response:
+                print(f"Không có đơn hàng mới cho '{store.name}'.")
+            else:
+                for order_data in new_orders_response:
+                    # --- MODIFIED: Robust transaction handling for each order ---
+                    try:
+                        # Kiểm tra sự tồn tại của đơn hàng
+                        exists = db.session.query(WooCommerceOrder.id).filter_by(wc_order_id=order_data['id'], store_id=store.id).first() is not None
+                        if not exists:
+                            full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
+                            new_order = WooCommerceOrder(store_id=store.id, **full_details['order'])
+                            db.session.add(new_order)
+                            for item_data in full_details['line_items']:
+                                item_data.pop('product_id', None) 
+                                new_item = OrderLineItem(order=new_order, **item_data)
+                                db.session.add(new_item)
+                            
+                            # Commit ngay sau khi thêm một đơn hàng để lưu nó ngay lập tức
+                            db.session.commit()
+                            
+                            # Cập nhật thời gian của đơn hàng mới nhất đã được LƯU THÀNH CÔNG
+                            latest_order_time = new_order.order_created_at
+                            
+                            # Gửi thông báo
+                            if store.user_id:
+                                notification_data = {"store_name": store.name, "order_id": new_order.wc_order_id, "customer_name": new_order.customer_name or "Khách lẻ", "total_amount": f"${new_order.total:,.2f}", "currency": new_order.currency, "status": new_order.status, "payment_method": new_order.payment_method_title, "product_list": format_products_for_notification(new_order.line_items)}
+                                asyncio.run(send_telegram_message(message_type='new_order', data=notification_data, user_id=store.user_id))
+
+                    except Exception as single_order_error:
+                        print(f"LỖI khi xử lý đơn hàng WC_ID {order_data.get('id')}: {single_order_error}")
+                        db.session.rollback() # Rollback lỗi của đơn hàng này và tiếp tục với các đơn hàng khác
+                        continue # Bỏ qua đơn hàng bị lỗi
+
+            # Cập nhật timestamp MỘT LẦN sau khi vòng lặp kết thúc
+            if latest_order_time:
+                store.last_notified_order_timestamp = latest_order_time
+            
+            store.last_checked = datetime.now(timezone.utc)
+            db.session.commit()
+            print(f"--- Hoàn tất kiểm tra cho '{store.name}', đã xử lý {len(new_orders_response)} đơn hàng. ---")
+
+        except Exception as e:
+            print(f"LỖI nghiêm trọng khi kiểm tra '{store.name}': {e}")
+            db.session.rollback()
+
+def add_or_update_store_job(app, store_id):
+    # ... (Nội dung không đổi)
     with app.app_context():
-        if scheduler.running: scheduler.shutdown(wait=False)
-        scheduler = BackgroundScheduler(daemon=True)
+        store = WooCommerceStore.query.get(store_id)
         setting = Setting.query.get('CHECK_INTERVAL_MINUTES')
         interval = int(setting.value) if setting and setting.value.isdigit() else 5
-        scheduler.add_job(func=check_all_stores_job, trigger='interval', minutes=interval, id='main_check_job', replace_existing=True)
+        job_id = f'check_store_{store_id}'
+
+        if store and store.is_active:
+            scheduler.add_job(
+                func=check_single_store_job,
+                trigger='interval',
+                minutes=interval,
+                id=job_id,
+                replace_existing=True,
+                args=[app, store_id],
+                max_instances=1
+            )
+            print(f"Đã thêm/cập nhật tác vụ cho cửa hàng '{store.name}' (ID: {store_id}) với chu kỳ {interval} phút.")
+        else:
+            if scheduler.get_job(job_id):
+                scheduler.remove_job(job_id)
+                print(f"Đã xóa tác vụ cho cửa hàng ID: {store_id} vì không hoạt động.")
+
+def remove_store_job(store_id):
+    # ... (Nội dung không đổi)
+    job_id = f'check_store_{store_id}'
+    if scheduler.get_job(job_id):
+        scheduler.remove_job(job_id)
+        print(f"Đã xóa tác vụ cho cửa hàng ID: {store_id}.")
+
+def init_scheduler(app):
+    # ... (Nội dung không đổi)
+    global scheduler
+    with app.app_context():
+        if scheduler.running:
+            try:
+                scheduler.shutdown(wait=False)
+            except Exception as e:
+                print(f"Lỗi khi tắt scheduler cũ: {e}")
+        
+        scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
         scheduler.start()
-        print(f"Scheduler đã được khởi tạo và chạy với chu kỳ {interval} phút.")
+        
+        print("--- Bắt đầu lập lịch cho các cửa hàng ---")
+        active_stores = WooCommerceStore.query.filter_by(is_active=True).all()
+        for store in active_stores:
+            add_or_update_store_job(app, store.id)
+        
+        print(f"--- Hoàn tất lập lịch cho {len(active_stores)} cửa hàng ---")
         atexit.register(lambda: scheduler.shutdown())

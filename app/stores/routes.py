@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from . import stores_bp
 from .forms import StoreForm
 from app import db
+# MODIFIED: Import the new helper functions from worker
 from app import worker
 from app.models import WooCommerceStore, AppUser, BackgroundTask
 from app.decorators import can_add_store_required
@@ -14,7 +15,7 @@ import uuid
 @stores_bp.route('/')
 @login_required
 def manage():
-    """Hiển thị trang quản lý các cửa hàng."""
+    # ... (Nội dung không đổi)
     page = request.args.get('page', 1, type=int)
 
     base_query = get_visible_stores_query(current_user)
@@ -31,7 +32,7 @@ def manage():
 @login_required
 @can_add_store_required
 def add():
-    """Xử lý việc thêm cửa hàng mới."""
+    # ... (Nội dung không đổi)
     form = StoreForm()
 
     if current_user.is_super_admin() or current_user.is_admin():
@@ -52,21 +53,18 @@ def add():
             note=form.note.data,
         )
 
-        # --- MODIFIED: Improved logic for assigning store owner ---
-        # 1. If a specific user is selected from the dropdown, assign to them.
         if 'user_id' in form and form.user_id.data > 0:
             new_store.user_id = form.user_id.data
-        # 2. If no user is selected ('Chưa gán') OR the current user is a standard user,
-        #    assign the store to the current logged-in user.
-        #    This ensures Admins get their own stores by default.
         elif 'user_id' not in form or form.user_id.data == 0:
-             # Super Admins can still create unassigned stores by selecting 'Chưa gán'.
              if not current_user.is_super_admin():
                 new_store.user_id = current_user.id
-        # --- End of modification ---
 
         db.session.add(new_store)
         db.session.commit()
+        
+        # MODIFIED: Add a job for the new store
+        worker.add_or_update_store_job(current_app._get_current_object(), new_store.id)
+        
         flash(f'Đã thêm cửa hàng "{new_store.name}" thành công!', 'success')
         return redirect(url_for('stores.manage'))
         
@@ -76,7 +74,6 @@ def add():
 @stores_bp.route('/edit/<int:store_id>', methods=['GET', 'POST'])
 @login_required
 def edit(store_id):
-    """Xử lý việc chỉnh sửa một cửa hàng."""
     store = WooCommerceStore.query.get_or_404(store_id)
     
     if not can_user_modify_store(current_user, store):
@@ -99,6 +96,10 @@ def edit(store_id):
         if 'user_id' in form and form.user_id.data == 0:
             store.user_id = None
         db.session.commit()
+
+        # MODIFIED: Update the job for the edited store
+        worker.add_or_update_store_job(current_app._get_current_object(), store.id)
+
         flash(f'Đã cập nhật cửa hàng "{store.name}"!', 'success')
         return redirect(url_for('stores.manage'))
         
@@ -111,7 +112,6 @@ def edit(store_id):
 @stores_bp.route('/delete/<int:store_id>', methods=['POST'])
 @login_required
 def delete(store_id):
-    """Xử lý việc xóa một cửa hàng."""
     store = WooCommerceStore.query.get_or_404(store_id)
     
     if not can_user_modify_store(current_user, store):
@@ -120,6 +120,10 @@ def delete(store_id):
         
     db.session.delete(store)
     db.session.commit()
+
+    # MODIFIED: Remove the job for the deleted store
+    worker.remove_store_job(store_id)
+
     flash(f'Đã xóa cửa hàng "{store.name}".', 'success')
     return redirect(url_for('stores.manage'))
 
@@ -127,7 +131,7 @@ def delete(store_id):
 @stores_bp.route('/fetch/<int:store_id>', methods=['POST'])
 @login_required
 def fetch_orders(store_id):
-    """Kích hoạt việc kiểm tra đơn hàng mới cho một cửa hàng."""
+    # ... (Nội dung không đổi)
     store = WooCommerceStore.query.get_or_404(store_id)
     
     if not can_user_modify_store(current_user, store):
@@ -135,7 +139,8 @@ def fetch_orders(store_id):
         return redirect(url_for('stores.manage'))
         
     try:
-        worker.check_single_store(store_id)
+        # MODIFIED: Run the single job check immediately
+        worker.check_single_store_job(current_app._get_current_object(), store_id)
         flash(f'Đã yêu cầu kiểm tra đơn hàng mới cho "{store.name}".', 'info')
     except Exception as e:
         flash(f'Lỗi khi kiểm tra đơn hàng: {e}', 'danger')
@@ -146,7 +151,7 @@ def fetch_orders(store_id):
 @stores_bp.route('/sync-history/<int:store_id>', methods=['POST'])
 @login_required
 def sync_history(store_id):
-    """Kích hoạt việc đồng bộ toàn bộ lịch sử đơn hàng."""
+    # ... (Nội dung không đổi)
     store = WooCommerceStore.query.get_or_404(store_id)
     
     if not can_user_modify_store(current_user, store):
