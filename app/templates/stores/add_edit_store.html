@@ -10,7 +10,7 @@
         <div class="card shadow-sm">
             <div class="card-body">
                 <form action="" method="post" novalidate>
-                    {{ form.hidden_tag() }} {# Chống tấn công CSRF #}
+                    {{ form.hidden_tag() }}
                     
                     <div class="mb-3">
                         {{ form.name.label(class="form-label") }}
@@ -22,7 +22,7 @@
 
                     <div class="mb-3">
                         {{ form.store_url.label(class="form-label") }}
-                        {{ form.store_url(class="form-control", placeholder="https://example.com") }}
+                        {{ form.store_url(class="form-control api-field", placeholder="https://example.com") }}
                         <div class="form-text">Nhập URL đầy đủ của trang web WooCommerce.</div>
                         {% for error in form.store_url.errors %}
                             <div class="invalid-feedback d-block">{{ error }}</div>
@@ -32,19 +32,26 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ form.consumer_key.label(class="form-label") }}
-                            {{ form.consumer_key(class="form-control", placeholder="ck_...") }}
+                            {{ form.consumer_key(class="form-control api-field", placeholder="ck_...") }}
                              {% for error in form.consumer_key.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
                         <div class="col-md-6 mb-3">
                             {{ form.consumer_secret.label(class="form-label") }}
-                            {{ form.consumer_secret(class="form-control", placeholder="cs_...") }}
+                            {{ form.consumer_secret(class="form-control api-field", placeholder="cs_...") }}
                              {% for error in form.consumer_secret.errors %}
                                 <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
                         </div>
                     </div>
+                    
+                    <div class="d-grid gap-2 mb-3">
+                        <button type="button" class="btn btn-outline-info" id="check-connection-btn">
+                            <i class="bi bi-broadcast"></i> Kiểm tra Kết nối & Kích hoạt Lưu
+                        </button>
+                    </div>
+                    <div id="connection-status" class="alert d-none" role="alert"></div>
 
                     <div class="mb-3">
                         {{ form.note.label(class="form-label") }}
@@ -54,7 +61,6 @@
                         {% endfor %}
                     </div>
 
-                    {# Trường gán người dùng chỉ hiển thị cho Admin và Super Admin #}
                     {% if (current_user.is_super_admin() or current_user.is_admin()) and form.user_id %}
                     <div class="mb-3">
                         {{ form.user_id.label(class="form-label") }}
@@ -68,11 +74,95 @@
 
                     <div class="d-flex justify-content-end gap-2 mt-4">
                         <a href="{{ url_for('stores.manage') }}" class="btn btn-secondary">Hủy</a>
-                        {{ form.submit(class="btn btn-primary") }}
+                        {{ form.submit(class="btn btn-primary", id="submit-btn") }}
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkBtn = document.getElementById('check-connection-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    const statusDiv = document.getElementById('connection-status');
+    
+    const urlInput = document.getElementById('store_url');
+    const keyInput = document.getElementById('consumer_key');
+    const secretInput = document.getElementById('consumer_secret');
+    const apiFields = [urlInput, keyInput, secretInput];
+
+    function resetStatus() {
+        submitBtn.disabled = true;
+        statusDiv.classList.add('d-none');
+        statusDiv.textContent = '';
+        statusDiv.className = 'alert d-none';
+    }
+
+    // === PHẦN ĐƯỢC SỬA LỖI ===
+    // Sử dụng Jinja IF để kiểm tra biến 'store' từ server
+    {% if store %}
+        // Nếu 'store' tồn tại -> trang EDIT -> nút Lưu được bật sẵn.
+        submitBtn.disabled = false;
+    {% else %}
+        // Nếu 'store' không tồn tại -> trang ADD -> nút Lưu bị vô hiệu hóa.
+        resetStatus();
+    {% endif %}
+    // === KẾT THÚC PHẦN SỬA LỖI ===
+
+    apiFields.forEach(field => {
+        field.addEventListener('input', resetStatus);
+    });
+
+    checkBtn.addEventListener('click', function() {
+        const storeUrl = urlInput.value.trim();
+        const consumerKey = keyInput.value.trim();
+        const consumerSecret = secretInput.value.trim();
+
+        if (!storeUrl || !consumerKey || !consumerSecret) {
+            alert('Vui lòng điền đầy đủ URL, Consumer Key và Consumer Secret.');
+            return;
+        }
+
+        checkBtn.disabled = true;
+        checkBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang kiểm tra...';
+        statusDiv.classList.remove('d-none', 'alert-success', 'alert-danger');
+        statusDiv.classList.add('alert-info');
+        statusDiv.textContent = 'Đang kết nối đến server...';
+        
+        fetch("{{ url_for('stores.check_connection') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                store_url: storeUrl,
+                consumer_key: consumerKey,
+                consumer_secret: consumerSecret
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            statusDiv.textContent = data.message;
+            if (data.success) {
+                statusDiv.className = 'alert alert-success';
+                submitBtn.disabled = false;
+            } else {
+                statusDiv.className = 'alert alert-danger';
+                submitBtn.disabled = true;
+            }
+        })
+        .catch(error => {
+            statusDiv.textContent = 'Lỗi phía client: ' + error;
+            statusDiv.className = 'alert alert-danger';
+            submitBtn.disabled = true;
+        })
+        .finally(() => {
+            checkBtn.disabled = false;
+            checkBtn.innerHTML = '<i class="bi bi-broadcast"></i> Kiểm tra Kết nối & Kích hoạt Lưu';
+        });
+    });
+});
+</script>
 {% endblock %}
