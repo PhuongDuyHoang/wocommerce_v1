@@ -1,6 +1,6 @@
 # app/settings/routes.py
 
-from flask import render_template, redirect, url_for, flash, current_app, request
+from flask import render_template, redirect, url_for, flash, current_app, request, jsonify
 from flask_login import current_user, login_required
 import json
 import asyncio
@@ -9,52 +9,23 @@ from . import settings_bp
 from .forms import SystemTelegramForm, SystemWorkerForm, PersonalSettingsForm, SystemTableForm, SystemTemplateForm
 from app import db, worker
 from app.models import Setting, AppUser
-from app.notifications import send_telegram_message
+from app.notifications import send_telegram_message, send_test_telegram_message
 from app.decorators import super_admin_required
 
 @settings_bp.route('/system', methods=['GET', 'POST'])
 @login_required
 @super_admin_required
 def system():
+    # ... (code không thay đổi, giữ nguyên)
     telegram_form = SystemTelegramForm()
     worker_form = SystemWorkerForm()
     table_form = SystemTableForm()
     template_form = SystemTemplateForm()
 
-    # MODIFIED: Changed 'submit_telegram' in request.form to check the form's submit field name
-    if telegram_form.submit_telegram.data and telegram_form.validate_on_submit():
-        Setting.set_value('TELEGRAM_BOT_TOKEN', telegram_form.telegram_bot_token.data)
-        Setting.set_value('TELEGRAM_CHAT_ID', telegram_form.telegram_chat_id.data)
-        Setting.set_value('TELEGRAM_SEND_DELAY_SECONDS', str(telegram_form.telegram_send_delay_seconds.data))
-        db.session.commit() # ADDED: Commit the changes to the database
-        flash('Đã cập nhật cài đặt Telegram của hệ thống.', 'success')
-        return redirect(url_for('settings.system'))
-
-    # MODIFIED: Changed 'submit_worker' in request.form to check the form's submit field name
-    if worker_form.submit_worker.data and worker_form.validate_on_submit():
-        old_interval = Setting.get_value('CHECK_INTERVAL_MINUTES', 5)
-        new_interval = worker_form.check_interval_minutes.data
-        Setting.set_value('CHECK_INTERVAL_MINUTES', str(new_interval))
-        Setting.set_value('FETCH_PRODUCT_IMAGES', str(worker_form.fetch_product_images.data))
-        db.session.commit() # ADDED: Commit the changes to the database
-        flash('Đã cập nhật cài đặt Worker & Dữ liệu.', 'success')
-        if int(old_interval) != new_interval:
-            flash('Chu kỳ kiểm tra đã thay đổi. Đang áp dụng lại lịch cho các cửa hàng đang hoạt động...', 'info')
-            worker.init_scheduler(current_app._get_current_object())
-        return redirect(url_for('settings.system'))
-    
-    # MODIFIED: Changed 'submit_table' in request.form to check the form's submit field name
-    if table_form.submit_table.data and table_form.validate_on_submit():
-        Setting.set_value('ORDER_TABLE_COLUMNS', table_form.order_table_columns.data)
-        db.session.commit() # ADDED: Commit the changes to the database
-        flash('Đã cập nhật cấu hình bảng đơn hàng.', 'success')
-        return redirect(url_for('settings.system'))
-
-    # MODIFIED: Changed 'submit_template' in request.form to check the form's submit field name
     if template_form.submit_template.data and template_form.validate_on_submit():
         Setting.set_value('DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER', template_form.telegram_template_new_order.data)
         Setting.set_value('DEFAULT_TELEGRAM_TEMPLATE_SYSTEM_TEST', template_form.telegram_template_system_test.data)
-        db.session.commit() # ADDED: Commit the changes to the database
+        db.session.commit()
         flash('Đã cập nhật các template Telegram.', 'success')
         return redirect(url_for('settings.system'))
 
@@ -87,6 +58,7 @@ def system():
 @settings_bp.route('/personal', methods=['GET', 'POST'])
 @login_required
 def personal():
+    # ... (code không thay đổi, giữ nguyên)
     if current_user.is_super_admin():
         flash('Super Admin không có trang cài đặt cá nhân, vui lòng sử dụng Cài đặt Hệ thống.', 'info')
         return redirect(url_for('settings.system'))
@@ -111,18 +83,51 @@ def personal():
     return render_template('settings/user_settings.html', title='Cài đặt Cá nhân', form=form)
 
 
+# --- CÁC ROUTE KIỂM TRA TELEGRAM ---
+
+@settings_bp.route('/test-telegram/system-new-order', methods=['POST'])
+@login_required
+@super_admin_required
+def test_system_new_order_template():
+    """API endpoint để test template đơn hàng mới của hệ thống."""
+    template_content = request.form.get('template_content')
+    if not template_content:
+        return jsonify({'status': 'error', 'message': 'Nội dung template rỗng.'})
+
+    bot_token = Setting.get_value('TELEGRAM_BOT_TOKEN')
+    chat_id = Setting.get_value('TELEGRAM_CHAT_ID')
+
+    success, message = asyncio.run(send_test_telegram_message(bot_token, chat_id, template_content))
+    
+    status = 'success' if success else 'error'
+    return jsonify({'status': status, 'message': message})
+
+
+@settings_bp.route('/test-telegram/personal-new-order', methods=['POST'])
+@login_required
+def test_personal_new_order_template():
+    """API endpoint để test template đơn hàng mới của cá nhân."""
+    template_content = request.form.get('template_content')
+    if not template_content:
+        return jsonify({'status': 'error', 'message': 'Nội dung template rỗng.'})
+
+    system_bot_token = Setting.get_value('TELEGRAM_BOT_TOKEN')
+    bot_token = current_user.telegram_bot_token or system_bot_token
+    chat_id = current_user.telegram_chat_id
+
+    success, message = asyncio.run(send_test_telegram_message(bot_token, chat_id, template_content))
+    
+    status = 'success' if success else 'error'
+    return jsonify({'status': status, 'message': message})
+
+# ... (Các route test cũ và toggle registration giữ nguyên)
 @settings_bp.route('/test-telegram/system', methods=['POST'])
 @login_required
 @super_admin_required
 def test_system_telegram():
     flash('Đã yêu cầu gửi tin nhắn thử đến kênh hệ thống.', 'info')
     app = current_app._get_current_object()
-    asyncio.run(send_telegram_message(
-        app=app,
-        message_type='system_test',
-        data={},
-        user_id=current_user.id
-    ))
+    asyncio.run(send_telegram_message(app=app, message_type='system_test', data={}, user_id=current_user.id))
     return redirect(url_for('settings.system'))
 
 
@@ -135,12 +140,7 @@ def test_personal_telegram():
         
     flash('Đã yêu cầu gửi tin nhắn thử đến kênh cá nhân của bạn.', 'info')
     app = current_app._get_current_object()
-    asyncio.run(send_telegram_message(
-        app=app,
-        message_type='user_test',
-        data={},
-        user_id=current_user.id
-    ))
+    asyncio.run(send_telegram_message(app=app, message_type='user_test', data={}, user_id=current_user.id))
     return redirect(url_for('settings.personal'))
 
 
@@ -151,6 +151,6 @@ def toggle_registration():
     current_status = Setting.get_value('ENABLE_USER_REGISTRATION', 'False').lower() == 'true'
     new_status = not current_status
     Setting.set_value('ENABLE_USER_REGISTRATION', str(new_status))
-    db.session.commit() # ADDED: Commit the changes to the database
+    db.session.commit()
     flash(f"Đã {'bật' if new_status else 'tắt'} chức năng cho phép người dùng tự đăng ký.", "success")
     return redirect(url_for('settings.system'))

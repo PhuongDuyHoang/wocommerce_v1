@@ -1,5 +1,23 @@
 {% extends "base.html" %}
 
+{% block styles %}
+<style>
+    .variable-guide {
+        font-size: 0.85em;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        padding: 10px;
+        border: 1px solid #dee2e6;
+    }
+    .variable-guide code {
+        background-color: #e9ecef;
+        padding: 2px 4px;
+        border-radius: 3px;
+        color: #d63384;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">{{ title }}</h1>
@@ -18,16 +36,10 @@
                     <div class="mb-3">
                         {{ form.telegram_bot_token.label(class="form-label") }}
                         {{ form.telegram_bot_token(class="form-control", placeholder="Để trống nếu muốn dùng Bot của hệ thống") }}
-                        {% for error in form.telegram_bot_token.errors %}
-                            <span class="text-danger">{{ error }}</span>
-                        {% endfor %}
                     </div>
                     <div class="mb-3">
                         {{ form.telegram_chat_id.label(class="form-label") }}
                         {{ form.telegram_chat_id(class="form-control", placeholder="Nhập ID kênh chat của riêng bạn") }}
-                        {% for error in form.telegram_chat_id.errors %}
-                            <span class="text-danger">{{ error }}</span>
-                        {% endfor %}
                     </div>
                     <div class="form-check mb-3">
                         {{ form.telegram_enabled(class="form-check-input") }}
@@ -40,13 +52,11 @@
                         {{ form.telegram_send_delay_seconds.label(class="form-label") }}
                         {{ form.telegram_send_delay_seconds(class="form-control") }}
                         <div class="form-text">Ghi đè độ trễ gửi tin nhắn mặc định của hệ thống.</div>
-                        {% for error in form.telegram_send_delay_seconds.errors %}
-                            <span class="text-danger">{{ error }}</span>
-                        {% endfor %}
                     </div>
                     {% endif %}
                 </div>
             </div>
+
 
             {% if current_user.can_customize_telegram_templates %}
             <div class="card shadow-sm mb-4">
@@ -56,9 +66,30 @@
                 <div class="card-body">
                     <div class="mb-3">
                         {{ form.telegram_template_new_order.label(class="form-label") }}
-                        {{ form.telegram_template_new_order(class="form-control") }}
+                        {{ form.telegram_template_new_order(class="form-control", rows=12) }}
                         <div class="form-text">Để trống để sử dụng template mặc định của hệ thống.</div>
                     </div>
+                    
+                    <div class="variable-guide mt-2">
+                        <strong><i class="bi bi-info-circle-fill"></i> Hướng dẫn các biến:</strong>
+                        {% raw %}
+                        <ul class="mb-0 mt-2 ps-4">
+                           <li><code>{{ store_name }}</code>: Tên cửa hàng có đơn hàng.</li>
+                            <li><code>{{ order_id }}</code>: Mã đơn hàng của WooCommerce.</li>
+                            <li><code>{{ customer_name }}</code>: Tên đầy đủ của khách hàng.</li>
+                            <li><code>{{ total_amount }}</code>: Tổng giá trị đơn hàng (đã định dạng).</li>
+                            <li><code>{{ currency }}</code>: Đơn vị tiền tệ (VD: USD).</li>
+                            <li><code>{{ status }}</code>: Trạng thái đơn hàng (VD: processing).</li>
+                            <li><code>{{ payment_method }}</code>: Phương thức thanh toán.</li>
+                            <li><code>{{ product_list }}</code>: Danh sách sản phẩm trong đơn hàng (đã định dạng).</li>
+                        </ul>
+                        {% endraw %}
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-end align-items-center bg-light">
+                     <button type="button" class="btn btn-outline-info me-auto" id="test-personal-template-btn" data-url="{{ url_for('settings.test_personal_new_order_template') }}">
+                        <i class="bi bi-send-check"></i> Kiểm tra Template
+                    </button>
                 </div>
             </div>
             {% endif %}
@@ -86,4 +117,43 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const testBtn = document.getElementById('test-personal-template-btn');
+    if (testBtn) {
+        testBtn.addEventListener('click', function() {
+            const url = this.dataset.url;
+            const templateTextarea = document.getElementById('telegram_template_new_order');
+            const templateContent = templateTextarea.value;
+
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang gửi...';
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'template_content': templateContent
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+            })
+            .catch(error => {
+                alert('Lỗi kết nối: ' + error);
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-send-check"></i> Kiểm tra Template';
+            });
+        });
+    }
+});
+</script>
 {% endblock %}

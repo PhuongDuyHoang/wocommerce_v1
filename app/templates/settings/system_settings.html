@@ -6,6 +6,21 @@
     .drag-handle { cursor: move; font-size: 1.2rem; color: #6c757d; }
     .sortable-ghost { opacity: 0.4; background-color: #d1ecf1; }
     .width-input { width: 100px; margin-left: auto; }
+
+    /* CSS cho bảng hướng dẫn các biến */
+    .variable-guide {
+        font-size: 0.85em;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        padding: 10px;
+        border: 1px solid #dee2e6;
+    }
+    .variable-guide code {
+        background-color: #e9ecef;
+        padding: 2px 4px;
+        border-radius: 3px;
+        color: #d63384;
+    }
 </style>
 {% endblock %}
 
@@ -36,7 +51,6 @@
                     </div>
                 </div>
                 <div class="card-footer text-end bg-light">
-                    {# MODIFIED: Calling the new field name 'submit_telegram' #}
                     {{ telegram_form.submit_telegram(class="btn btn-primary") }}
                 </div>
             </form>
@@ -59,7 +73,6 @@
                     </div>
                 </div>
                 <div class="card-footer text-end bg-light">
-                    {# MODIFIED: Calling the new field name 'submit_worker' #}
                     {{ worker_form.submit_worker(class="btn btn-primary") }}
                 </div>
             </form>
@@ -86,7 +99,6 @@
                     </ul>
                 </div>
                 <div class="card-footer text-end bg-light">
-                    {# MODIFIED: Calling the new field name 'submit_table' #}
                     {{ table_form.submit_table(class="btn btn-primary") }}
                 </div>
             </form>
@@ -99,25 +111,41 @@
                 <div class="card-body">
                     <div class="mb-3">
                         {{ template_form.telegram_template_new_order.label(class="form-label") }}
-                        {{ template_form.telegram_template_new_order(class="form-control", rows=10) }}
-                        <div class="form-text mt-2">
-                            <strong>Các biến có thể dùng:</strong><br>
-                            <code>{{ store_name }}</code>, <code>{{ order_id }}</code>, <code>{{ customer_name }}</code>, <code>{{ total_amount }}</code>, 
-                            <code>{{ currency }}</code>, <code>{{ status }}</code>, <code>{{ payment_method }}</code>, <code>{{ product_list }}</code>
-                        </div>
+                        {{ template_form.telegram_template_new_order(class="form-control", rows=12) }}
                     </div>
+
+                    <div class="variable-guide">
+                        <strong><i class="bi bi-info-circle-fill"></i> Hướng dẫn các biến:</strong>
+                        {% raw %}
+                        <ul class="mb-0 mt-2 ps-4">
+                            <li><code>{{ store_name }}</code>: Tên cửa hàng có đơn hàng.</li>
+                            <li><code>{{ order_id }}</code>: Mã đơn hàng của WooCommerce.</li>
+                            <li><code>{{ customer_name }}</code>: Tên đầy đủ của khách hàng.</li>
+                            <li><code>{{ total_amount }}</code>: Tổng giá trị đơn hàng (đã định dạng).</li>
+                            <li><code>{{ currency }}</code>: Đơn vị tiền tệ (VD: USD).</li>
+                            <li><code>{{ status }}</code>: Trạng thái đơn hàng (VD: processing).</li>
+                            <li><code>{{ payment_method }}</code>: Phương thức thanh toán.</li>
+                            <li><code>{{ product_list }}</code>: Danh sách sản phẩm trong đơn hàng (đã định dạng).</li>
+                        </ul>
+                        {% endraw %}
+                    </div>
+
                     <hr>
                     <div class="mb-3">
                         {{ template_form.telegram_template_system_test.label(class="form-label") }}
                         {{ template_form.telegram_template_system_test(class="form-control", rows=4) }}
                         <div class="form-text mt-2">
                             <strong>Các biến có thể dùng:</strong> 
+                            {% raw %}
                             <code>{{ bot_username }}</code>
+                            {% endraw %}
                         </div>
                     </div>
                 </div>
-                <div class="card-footer text-end bg-light">
-                    {# MODIFIED: Calling the new field name 'submit_template' #}
+                <div class="card-footer text-end bg-light d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-outline-info" id="test-new-order-btn" data-url="{{ url_for('settings.test_system_new_order_template') }}">
+                        <i class="bi bi-send-check"></i> Kiểm tra Template Đơn hàng
+                    </button>
                     {{ template_form.submit_template(class="btn btn-primary") }}
                 </div>
             </form>
@@ -181,6 +209,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 hiddenInput.value = JSON.stringify(newConfig);
             });
         }
+    }
+
+    const testBtn = document.getElementById('test-new-order-btn');
+    if (testBtn) {
+        testBtn.addEventListener('click', function() {
+            const url = this.dataset.url;
+            const templateTextarea = document.getElementById('telegram_template_new_order');
+            const templateContent = templateTextarea.value;
+
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang gửi...';
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'template_content': templateContent
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+            })
+            .catch(error => {
+                alert('Lỗi kết nối: ' + error);
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-send-check"></i> Kiểm tra Template Đơn hàng';
+            });
+        });
     }
 });
 </script>
