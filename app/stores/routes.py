@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from woocommerce import API
 import requests
 import json
+from datetime import datetime, timezone # Thêm import này
 
 from . import stores_bp
 from .forms import StoreForm
@@ -18,8 +19,6 @@ import uuid
 def _check_woo_connection(url, key, secret):
     """
     Hàm helper để kiểm tra kết nối đến WooCommerce API.
-    MODIFIED: Thay đổi phương thức kiểm tra bằng cách gọi đến endpoint 'system_status'
-              để đáng tin cậy hơn và tránh bị chặn bởi các plugin bảo mật.
     """
     if not url or not key or not secret:
         return False, "URL, Consumer Key, và Consumer Secret không được để trống."
@@ -29,9 +28,8 @@ def _check_woo_connection(url, key, secret):
             consumer_key=key,
             consumer_secret=secret,
             version="wc/v3",
-            timeout=20  # Tăng timeout để ổn định hơn
+            timeout=20
         )
-        # THAY ĐỔI PHƯƠNG THỨC: Gọi đến 'system_status' thay vì '.'
         response = wcapi.get("system_status")
         
         try:
@@ -39,7 +37,6 @@ def _check_woo_connection(url, key, secret):
         except (json.JSONDecodeError, requests.exceptions.JSONDecodeError):
             return False, f"Kết nối thành công (Mã: {response.status_code}) nhưng phản hồi không phải là JSON hợp lệ. Vui lòng kiểm tra các plugin bảo mật hoặc caching."
 
-        # THAY ĐỔI ĐIỀU KIỆN KIỂM TRA: Kiểm tra sự tồn tại của khóa 'environment'
         if response.status_code == 200 and 'environment' in response_data:
              return True, "Kết nối thành công! API WooCommerce hoạt động bình thường."
         elif 'message' in response_data:
@@ -90,15 +87,22 @@ def add():
             consumer_secret=form.consumer_secret.data,
             note=form.note.data,
         )
+
+        # === PHẦN ĐƯỢC THÊM VÀO ĐỂ SỬA LỖI ===
+        # Đặt mốc thời gian ban đầu để chỉ lấy các đơn hàng mới từ bây giờ.
+        new_store.last_notified_order_timestamp = datetime.now(timezone.utc)
+        # === KẾT THÚC PHẦN SỬA LỖI ===
+
         if 'user_id' in form and form.user_id.data > 0:
             new_store.user_id = form.user_id.data
         elif 'user_id' not in form or form.user_id.data == 0:
              if not current_user.is_super_admin():
                 new_store.user_id = current_user.id
+        
         db.session.add(new_store)
         db.session.commit()
         worker.add_or_update_store_job(current_app._get_current_object(), new_store.id)
-        flash(f'Đã thêm cửa hàng "{new_store.name}" thành công!', 'success')
+        flash(f'Đã thêm cửa hàng "{new_store.name}" thành công! Hệ thống sẽ chỉ thông báo cho các đơn hàng mới kể từ bây giờ.', 'success')
         return redirect(url_for('stores.manage'))
         
     return render_template('stores/add_edit_store.html', title='Thêm Cửa hàng', form=form)
