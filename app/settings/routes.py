@@ -1,205 +1,156 @@
 # app/settings/routes.py
 
-from flask import render_template, redirect, url_for, flash, request, current_app
+from flask import render_template, redirect, url_for, flash, current_app, request
 from flask_login import current_user, login_required
-from . import settings_bp
-from .forms import (
-    TelegramSettingsForm, WorkerSettingsForm, OrderTableSettingsForm, 
-    TemplateSettingsForm, UserSettingsForm
-)
-from app import db, worker
-from app.models import Setting, AppUser
-from app.decorators import super_admin_required
-from app.notifications import send_telegram_message
 import json
 import asyncio
+
+from . import settings_bp
+from .forms import SystemTelegramForm, SystemWorkerForm, PersonalSettingsForm, SystemTableForm, SystemTemplateForm
+from app import db, worker
+from app.models import Setting, AppUser
+from app.notifications import send_telegram_message
+from app.decorators import super_admin_required
 
 @settings_bp.route('/system', methods=['GET', 'POST'])
 @login_required
 @super_admin_required
 def system():
-    # ... (Nội dung hàm system() không thay đổi, chỉ các lời gọi hàm bên dưới) ...
-    telegram_form = TelegramSettingsForm(prefix='telegram')
-    worker_form = WorkerSettingsForm(prefix='worker')
-    table_form = OrderTableSettingsForm(prefix='table')
-    template_form = TemplateSettingsForm(prefix='template')
+    telegram_form = SystemTelegramForm()
+    worker_form = SystemWorkerForm()
+    table_form = SystemTableForm()
+    template_form = SystemTemplateForm()
 
-    if request.method == 'POST':
-        if 'telegram-submit' in request.form and telegram_form.validate_on_submit():
-            save_setting('TELEGRAM_BOT_TOKEN', telegram_form.telegram_bot_token.data or '')
-            save_setting('TELEGRAM_CHAT_ID', telegram_form.telegram_chat_id.data or '')
-            save_setting('TELEGRAM_SEND_DELAY_SECONDS', telegram_form.telegram_send_delay_seconds.data)
-            flash('Đã lưu cài đặt Telegram!', 'success')
-        
-        elif 'worker-submit' in request.form and worker_form.validate_on_submit():
-            old_interval_setting = Setting.query.get('CHECK_INTERVAL_MINUTES')
-            old_interval = old_interval_setting.value if old_interval_setting else None
-            new_interval = worker_form.check_interval_minutes.data
-            
-            save_setting('CHECK_INTERVAL_MINUTES', new_interval)
-            save_setting('FETCH_PRODUCT_IMAGES', worker_form.fetch_product_images.data)
-            
-            if old_interval and old_interval != str(new_interval):
-                 worker.init_scheduler(current_app._get_current_object())
-                 flash(f'Đã cập nhật chu kỳ Worker thành {new_interval} phút và khởi động lại.', 'info')
-            else:
-                flash('Đã lưu cài đặt Worker & Dữ liệu!', 'success')
-
-        elif 'table-submit' in request.form and table_form.validate_on_submit():
-            save_setting('ORDER_TABLE_COLUMNS', table_form.order_table_columns.data)
-            flash('Đã lưu cấu hình bảng đơn hàng!', 'success')
-
-        elif 'template-submit' in request.form and template_form.validate_on_submit():
-            save_setting('TELEGRAM_TEMPLATE_NEW_ORDER', template_form.telegram_template_new_order.data)
-            save_setting('TELEGRAM_TEMPLATE_SYSTEM_TEST', template_form.telegram_template_system_test.data)
-            flash('Đã lưu cấu hình Template!', 'success')
-            
+    # MODIFIED: Changed 'submit_telegram' in request.form to check the form's submit field name
+    if telegram_form.submit_telegram.data and telegram_form.validate_on_submit():
+        Setting.set_value('TELEGRAM_BOT_TOKEN', telegram_form.telegram_bot_token.data)
+        Setting.set_value('TELEGRAM_CHAT_ID', telegram_form.telegram_chat_id.data)
+        Setting.set_value('TELEGRAM_SEND_DELAY_SECONDS', str(telegram_form.telegram_send_delay_seconds.data))
+        db.session.commit() # ADDED: Commit the changes to the database
+        flash('Đã cập nhật cài đặt Telegram của hệ thống.', 'success')
         return redirect(url_for('settings.system'))
 
-    settings = {s.key: s.value for s in Setting.query.all()}
+    # MODIFIED: Changed 'submit_worker' in request.form to check the form's submit field name
+    if worker_form.submit_worker.data and worker_form.validate_on_submit():
+        old_interval = Setting.get_value('CHECK_INTERVAL_MINUTES', 5)
+        new_interval = worker_form.check_interval_minutes.data
+        Setting.set_value('CHECK_INTERVAL_MINUTES', str(new_interval))
+        Setting.set_value('FETCH_PRODUCT_IMAGES', str(worker_form.fetch_product_images.data))
+        db.session.commit() # ADDED: Commit the changes to the database
+        flash('Đã cập nhật cài đặt Worker & Dữ liệu.', 'success')
+        if int(old_interval) != new_interval:
+            flash('Chu kỳ kiểm tra đã thay đổi. Đang áp dụng lại lịch cho các cửa hàng đang hoạt động...', 'info')
+            worker.init_scheduler(current_app._get_current_object())
+        return redirect(url_for('settings.system'))
     
-    telegram_form.telegram_bot_token.data = settings.get('TELEGRAM_BOT_TOKEN')
-    telegram_form.telegram_chat_id.data = settings.get('TELEGRAM_CHAT_ID')
-    telegram_form.telegram_send_delay_seconds.data = int(settings.get('TELEGRAM_SEND_DELAY_SECONDS', 2))
-    
-    worker_form.check_interval_minutes.data = int(settings.get('CHECK_INTERVAL_MINUTES', 5))
-    worker_form.fetch_product_images.data = settings.get('FETCH_PRODUCT_IMAGES', 'false').lower() == 'true'
+    # MODIFIED: Changed 'submit_table' in request.form to check the form's submit field name
+    if table_form.submit_table.data and table_form.validate_on_submit():
+        Setting.set_value('ORDER_TABLE_COLUMNS', table_form.order_table_columns.data)
+        db.session.commit() # ADDED: Commit the changes to the database
+        flash('Đã cập nhật cấu hình bảng đơn hàng.', 'success')
+        return redirect(url_for('settings.system'))
 
-    template_form.telegram_template_new_order.data = settings.get('TELEGRAM_TEMPLATE_NEW_ORDER')
-    template_form.telegram_template_system_test.data = settings.get('TELEGRAM_TEMPLATE_SYSTEM_TEST')
+    # MODIFIED: Changed 'submit_template' in request.form to check the form's submit field name
+    if template_form.submit_template.data and template_form.validate_on_submit():
+        Setting.set_value('DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER', template_form.telegram_template_new_order.data)
+        Setting.set_value('DEFAULT_TELEGRAM_TEMPLATE_SYSTEM_TEST', template_form.telegram_template_system_test.data)
+        db.session.commit() # ADDED: Commit the changes to the database
+        flash('Đã cập nhật các template Telegram.', 'success')
+        return redirect(url_for('settings.system'))
 
-    DEFAULT_COLUMNS = [
-        {'key': 'wc_order_id', 'label': 'Mã ĐH', 'visible': True, 'type': 'numeric', 'width': '90px'},
-        {'key': 'store_name', 'label': 'Cửa hàng', 'visible': True, 'type': 'text', 'width': '15%'},
-        {'key': 'owner_username', 'label': 'Người dùng', 'visible': False, 'type': 'text', 'width': '120px'},
-        {'key': 'customer_name', 'label': 'Khách hàng', 'visible': True, 'type': 'text', 'width': '15%'},
-        {'key': 'products', 'label': 'Sản phẩm & Biến thể', 'visible': True, 'type': 'custom', 'width': '35%'},
-        {'key': 'total', 'label': 'Tổng tiền', 'visible': True, 'type': 'currency', 'width': '120px'},
-        {'key': 'shipping_total', 'label': 'Phí Ship', 'visible': False, 'type': 'currency', 'width': '100px'},
-        {'key': 'status', 'label': 'Trạng thái', 'visible': True, 'type': 'badge', 'width': '120px'},
-        {'key': 'payment_method_title', 'label': 'Thanh toán', 'visible': True, 'type': 'text', 'width': '120px'},
-        {'key': 'order_created_at', 'label': 'Ngày tạo', 'visible': True, 'type': 'datetime', 'width': '140px'},
-    ]
-    order_columns_config = get_or_create_column_config(DEFAULT_COLUMNS)
-    
-    enable_registration_status = settings.get('ENABLE_REGISTRATION', 'false').lower() == 'true'
-
-    return render_template(
-        'settings/system_settings.html', 
-        title='Cài đặt Hệ thống', 
-        telegram_form=telegram_form,
-        worker_form=worker_form,
-        table_form=table_form,
-        template_form=template_form,
-        enable_registration_status=enable_registration_status, 
-        order_columns_config=order_columns_config
-    )
-
-def save_setting(key, value):
-    # ... (Nội dung không đổi) ...
-    setting = Setting.query.get(key.upper())
-    str_value = str(value)
-    if setting:
-        if setting.value != str_value:
-            setting.value = str_value
-    else:
-        db.session.add(Setting(key=key.upper(), value=str_value))
-    db.session.commit()
-
-def get_or_create_column_config(default_columns):
-    # ... (Nội dung không đổi) ...
-    setting = Setting.query.get('ORDER_TABLE_COLUMNS')
-    if not setting or not setting.value:
-        config = default_columns
-        save_setting('ORDER_TABLE_COLUMNS', json.dumps(config))
-        return config
-    
-    saved_config = json.loads(setting.value)
-    saved_keys = {c['key'] for c in saved_config}
-    needs_update = False
-    
-    for i, saved_col in enumerate(saved_config):
-        default_col = next((c for c in default_columns if c['key'] == saved_col['key']), None)
-        if default_col:
-            for prop in ['label', 'type', 'width']:
-                if prop not in saved_col:
-                    saved_config[i][prop] = default_col[prop]
-                    needs_update = True
-    
-    for default_col in default_columns:
-        if default_col['key'] not in saved_keys:
-            saved_config.append(default_col)
-            needs_update = True
-    
-    if needs_update:
-        save_setting('ORDER_TABLE_COLUMNS', json.dumps(saved_config))
+    if request.method == 'GET':
+        telegram_form.telegram_bot_token.data = Setting.get_value('TELEGRAM_BOT_TOKEN')
+        telegram_form.telegram_chat_id.data = Setting.get_value('TELEGRAM_CHAT_ID')
+        telegram_form.telegram_send_delay_seconds.data = int(Setting.get_value('TELEGRAM_SEND_DELAY_SECONDS', 2))
         
-    return saved_config
+        worker_form.check_interval_minutes.data = int(Setting.get_value('CHECK_INTERVAL_MINUTES', 5))
+        worker_form.fetch_product_images.data = Setting.get_value('FETCH_PRODUCT_IMAGES', 'False').lower() == 'true'
+
+        template_form.telegram_template_new_order.data = Setting.get_value('DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER', current_app.config['DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER'])
+        template_form.telegram_template_system_test.data = Setting.get_value('DEFAULT_TELEGRAM_TEMPLATE_SYSTEM_TEST', current_app.config['DEFAULT_TELEGRAM_TEMPLATE_SYSTEM_TEST'])
     
-@settings_bp.route('/system/toggle_registration', methods=['POST'])
-@login_required
-@super_admin_required
-def toggle_registration():
-    # ... (Nội dung không đổi) ...
-    setting = Setting.query.get('ENABLE_REGISTRATION')
-    if not setting:
-        db.session.add(Setting(key='ENABLE_REGISTRATION', value='false'))
-        db.session.commit()
-        setting = Setting.query.get('ENABLE_REGISTRATION')
+    order_columns_json = Setting.get_value('ORDER_TABLE_COLUMNS', '[]')
+    order_columns_config = json.loads(order_columns_json)
+    
+    enable_registration_status = Setting.get_value('ENABLE_USER_REGISTRATION', 'False').lower() == 'true'
 
-    current_status = setting.value.lower() == 'true'
-    setting.value = str(not current_status)
-    db.session.commit()
-    flash(f'Chức năng đăng ký đã được {"Tắt" if current_status else "Bật"}.', 'success')
-    return redirect(url_for('settings.system'))
+    return render_template('settings/system_settings.html', 
+                           title='Cài đặt Hệ thống',
+                           telegram_form=telegram_form,
+                           worker_form=worker_form,
+                           table_form=table_form,
+                           template_form=template_form,
+                           order_columns_config=order_columns_config,
+                           enable_registration_status=enable_registration_status)
 
-@settings_bp.route('/system/test_telegram', methods=['POST'])
-@login_required
-@super_admin_required
-def test_system_telegram():
-    # MODIFIED: Pass the current_app object to the async function
-    app = current_app._get_current_object()
-    asyncio.run(send_telegram_message(app, message_type='system_test', data={}, user_id=current_user.id))
-    flash('Đã gửi tin nhắn thử đến kênh hệ thống.', 'info')
-    return redirect(url_for('settings.system'))
 
 @settings_bp.route('/personal', methods=['GET', 'POST'])
 @login_required
 def personal():
-    # ... (Nội dung không đổi) ...
-    form = UserSettingsForm()
+    if current_user.is_super_admin():
+        flash('Super Admin không có trang cài đặt cá nhân, vui lòng sử dụng Cài đặt Hệ thống.', 'info')
+        return redirect(url_for('settings.system'))
+
+    form = PersonalSettingsForm(obj=current_user)
     if form.validate_on_submit():
-        current_user.telegram_bot_token = form.telegram_bot_token.data
-        current_user.telegram_chat_id = form.telegram_chat_id.data
+        current_user.telegram_bot_token = form.telegram_bot_token.data or None
+        current_user.telegram_chat_id = form.telegram_chat_id.data or None
         current_user.telegram_enabled = form.telegram_enabled.data
         if current_user.can_customize_telegram_delay:
             current_user.telegram_send_delay_seconds = form.telegram_send_delay_seconds.data
         if current_user.can_customize_telegram_templates:
             current_user.telegram_template_new_order = form.telegram_template_new_order.data
-            current_user.telegram_template_user_test = form.telegram_template_user_test.data
         db.session.commit()
-        flash('Đã lưu cài đặt cá nhân của bạn.', 'success')
+        flash('Đã cập nhật cài đặt cá nhân của bạn.', 'success')
         return redirect(url_for('settings.personal'))
-        
-    form.telegram_bot_token.data = current_user.telegram_bot_token
-    form.telegram_chat_id.data = current_user.telegram_chat_id
-    form.telegram_enabled.data = current_user.telegram_enabled
-    if current_user.can_customize_telegram_delay:
-        form.telegram_send_delay_seconds.data = current_user.telegram_send_delay_seconds
-    if current_user.can_customize_telegram_templates:
-        form.telegram_template_new_order.data = current_user.telegram_template_new_order
-        form.telegram_template_user_test.data = current_user.telegram_template_user_test
+
+    if request.method == 'GET' and current_user.can_customize_telegram_templates:
+        if not form.telegram_template_new_order.data:
+            form.telegram_template_new_order.data = Setting.get_value('DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER', current_app.config['DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER'])
+
     return render_template('settings/user_settings.html', title='Cài đặt Cá nhân', form=form)
 
-@settings_bp.route('/personal/test_telegram', methods=['POST'])
+
+@settings_bp.route('/test-telegram/system', methods=['POST'])
+@login_required
+@super_admin_required
+def test_system_telegram():
+    flash('Đã yêu cầu gửi tin nhắn thử đến kênh hệ thống.', 'info')
+    app = current_app._get_current_object()
+    asyncio.run(send_telegram_message(
+        app=app,
+        message_type='system_test',
+        data={},
+        user_id=current_user.id
+    ))
+    return redirect(url_for('settings.system'))
+
+
+@settings_bp.route('/test-telegram/personal', methods=['POST'])
 @login_required
 def test_personal_telegram():
     if not current_user.telegram_enabled or not current_user.telegram_chat_id:
-        flash('Vui lòng bật và điền Chat ID Telegram cá nhân trước khi thử.', 'warning')
+        flash('Vui lòng bật và điền đầy đủ thông tin Telegram trước khi thử.', 'danger')
         return redirect(url_for('settings.personal'))
         
-    # MODIFIED: Pass the current_app object to the async function
+    flash('Đã yêu cầu gửi tin nhắn thử đến kênh cá nhân của bạn.', 'info')
     app = current_app._get_current_object()
-    asyncio.run(send_telegram_message(app, message_type='user_test', data={}, user_id=current_user.id))
-    flash('Đã gửi tin nhắn thử đến kênh cá nhân của bạn.', 'info')
+    asyncio.run(send_telegram_message(
+        app=app,
+        message_type='user_test',
+        data={},
+        user_id=current_user.id
+    ))
     return redirect(url_for('settings.personal'))
+
+
+@settings_bp.route('/toggle-registration', methods=['POST'])
+@login_required
+@super_admin_required
+def toggle_registration():
+    current_status = Setting.get_value('ENABLE_USER_REGISTRATION', 'False').lower() == 'true'
+    new_status = not current_status
+    Setting.set_value('ENABLE_USER_REGISTRATION', str(new_status))
+    db.session.commit() # ADDED: Commit the changes to the database
+    flash(f"Đã {'bật' if new_status else 'tắt'} chức năng cho phép người dùng tự đăng ký.", "success")
+    return redirect(url_for('settings.system'))

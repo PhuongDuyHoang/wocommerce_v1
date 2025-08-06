@@ -13,13 +13,12 @@ import re
 
 from app import db
 from .models import WooCommerceStore, WooCommerceOrder, Setting, BackgroundTask, OrderLineItem
-from .notifications import send_telegram_message
+from .notifications import send_telegram_message, escape_markdown_v2
 
 scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
 executor = ThreadPoolExecutor(max_workers=2)
 
 def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bool) -> dict:
-    # ... (Nội dung không đổi)
     line_items_data = []
     for item in order_data.get('line_items', []):
         variation_values = []
@@ -77,21 +76,28 @@ def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bo
     return {'order': order_level_data, 'line_items': line_items_data}
 
 def format_products_for_notification(line_items) -> str:
-    # ... (Nội dung không đổi)
+    """
+    MODIFIED: Formats line items for a Telegram notification, ensuring special
+    characters in product names and variations are handled correctly.
+    """
     if not line_items: return "- Không có sản phẩm."
     lines = []
     for item in line_items:
-        line = f"\\- {item.product_name} \\(SL: {item.quantity}\\)"
+        # Escape the product name, as it's rendered as plain text in the message
+        escaped_name = escape_markdown_v2(item.product_name)
+        line = f"\\- {escaped_name} \\(SL: {item.quantity}\\)"
+        
         variations = item.variations_list
         variations_str = ", ".join(variations)
         if variations_str:
-            safe_variations = variations_str.replace('`', '\\`').replace('*', '\\*')
-            line += f"\n  `{safe_variations}`"
+            # For text inside `code blocks`, we just need to avoid backticks.
+            # Other special Markdown characters are ignored by Telegram inside `...`.
+            safe_variations_for_code = variations_str.replace('`', "'")
+            line += f"\n  `{safe_variations_for_code}`"
         lines.append(line)
     return "\n".join(lines)
 
 def sync_history_for_store(app, store_id: int, job_id: str):
-    # ... (Nội dung không đổi)
     with app.app_context():
         store = WooCommerceStore.query.get(store_id)
         task = BackgroundTask.query.filter_by(job_id=job_id).first()
@@ -174,13 +180,12 @@ def check_single_store_job(app, store_id):
     with app.app_context():
         store = db.session.get(WooCommerceStore, store_id)
         if not store or not store.is_active:
-            # print(f"Bỏ qua kiểm tra cho cửa hàng ID {store_id} vì không hoạt động.")
             return
 
         print(f"--- Bắt đầu kiểm tra đơn hàng cho: '{store.name}' ---")
         
         latest_order_time = None
-        
+        new_orders_to_notify = []
         try:
             setting = db.session.get(Setting, 'FETCH_PRODUCT_IMAGES')
             should_fetch_images = setting.value.lower() == 'true' if setting else False
@@ -200,9 +205,7 @@ def check_single_store_job(app, store_id):
                 print(f"Không có đơn hàng mới cho '{store.name}'.")
             else:
                 for order_data in new_orders_response:
-                    # --- MODIFIED: Robust transaction handling for each order ---
                     try:
-                        # Kiểm tra sự tồn tại của đơn hàng
                         exists = db.session.query(WooCommerceOrder.id).filter_by(wc_order_id=order_data['id'], store_id=store.id).first() is not None
                         if not exists:
                             full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
@@ -213,23 +216,15 @@ def check_single_store_job(app, store_id):
                                 new_item = OrderLineItem(order=new_order, **item_data)
                                 db.session.add(new_item)
                             
-                            # Commit ngay sau khi thêm một đơn hàng để lưu nó ngay lập tức
                             db.session.commit()
-                            
-                            # Cập nhật thời gian của đơn hàng mới nhất đã được LƯU THÀNH CÔNG
                             latest_order_time = new_order.order_created_at
-                            
-                            # Gửi thông báo
-                            if store.user_id:
-                                notification_data = {"store_name": store.name, "order_id": new_order.wc_order_id, "customer_name": new_order.customer_name or "Khách lẻ", "total_amount": f"${new_order.total:,.2f}", "currency": new_order.currency, "status": new_order.status, "payment_method": new_order.payment_method_title, "product_list": format_products_for_notification(new_order.line_items)}
-                                asyncio.run(send_telegram_message(message_type='new_order', data=notification_data, user_id=store.user_id))
+                            new_orders_to_notify.append(new_order)
 
                     except Exception as single_order_error:
                         print(f"LỖI khi xử lý đơn hàng WC_ID {order_data.get('id')}: {single_order_error}")
-                        db.session.rollback() # Rollback lỗi của đơn hàng này và tiếp tục với các đơn hàng khác
-                        continue # Bỏ qua đơn hàng bị lỗi
+                        db.session.rollback()
+                        continue
 
-            # Cập nhật timestamp MỘT LẦN sau khi vòng lặp kết thúc
             if latest_order_time:
                 store.last_notified_order_timestamp = latest_order_time
             
@@ -240,9 +235,26 @@ def check_single_store_job(app, store_id):
         except Exception as e:
             print(f"LỖI nghiêm trọng khi kiểm tra '{store.name}': {e}")
             db.session.rollback()
+            return
+
+        if new_orders_to_notify and store.user_id:
+            for order in new_orders_to_notify:
+                try:
+                    notification_data = {
+                        "store_name": store.name, 
+                        "order_id": order.wc_order_id, 
+                        "customer_name": order.customer_name or "Khách lẻ", 
+                        "total_amount": f"${order.total:,.2f}", 
+                        "currency": order.currency, 
+                        "status": order.status, 
+                        "payment_method": order.payment_method_title, 
+                        "product_list": format_products_for_notification(order.line_items)
+                    }
+                    asyncio.run(send_telegram_message(app, message_type='new_order', data=notification_data, user_id=store.user_id))
+                except Exception as notify_error:
+                    print(f"LỖI khi gửi thông báo cho đơn hàng {order.wc_order_id}: {notify_error}")
 
 def add_or_update_store_job(app, store_id):
-    # ... (Nội dung không đổi)
     with app.app_context():
         store = WooCommerceStore.query.get(store_id)
         setting = Setting.query.get('CHECK_INTERVAL_MINUTES')
@@ -266,14 +278,12 @@ def add_or_update_store_job(app, store_id):
                 print(f"Đã xóa tác vụ cho cửa hàng ID: {store_id} vì không hoạt động.")
 
 def remove_store_job(store_id):
-    # ... (Nội dung không đổi)
     job_id = f'check_store_{store_id}'
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)
         print(f"Đã xóa tác vụ cho cửa hàng ID: {store_id}.")
 
 def init_scheduler(app):
-    # ... (Nội dung không đổi)
     global scheduler
     with app.app_context():
         if scheduler.running:

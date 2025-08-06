@@ -23,42 +23,30 @@ class Config:
     TELEGRAM_ENABLED = os.environ.get('TELEGRAM_ENABLED', 'False').lower() in ('true', '1', 't')
 
     # --- Cấu hình tác vụ nền mặc định ---
-    # Độ trễ mặc định giữa các tin nhắn Telegram để tránh bị giới hạn (tính bằng giây)
     DEFAULT_TELEGRAM_SEND_DELAY_SECONDS = int(os.environ.get('DEFAULT_TELEGRAM_SEND_DELAY_SECONDS', '2'))
-    # Chu kỳ mặc định để worker kiểm tra đơn hàng mới trên tất cả các cửa hàng (tính bằng phút)
     DEFAULT_CHECK_INTERVAL_MINUTES = int(os.environ.get('DEFAULT_CHECK_INTERVAL_MINUTES', '5'))
 
 
-    # --- TEMPLATE THÔNG BÁO TELEGRAM MẶC ĐỊNH CHO WOOCOMMERCE ---
+    # --- MODIFIED: Added default Telegram message templates ---
     # Lưu ý: Các template này sử dụng cú pháp MarkdownV2 của Telegram.
-    # Dấu *bao quanh* để in đậm, `bao quanh` để tạo khối mã đơn dòng.
-    # Các ký tự đặc biệt như . ! - phải được thoát bằng dấu \ đứng trước (ví dụ: \. \! \-).
+    # Các ký tự đặc biệt như ., !, -, # phải được thoát bằng dấu \ đứng trước (ví dụ: \., \!, \-).
+    # Điều này rất quan trọng để Telegram không hiểu nhầm là cú pháp định dạng.
 
     # Template khi có đơn hàng mới
     DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER = """🛍️ Cửa hàng *{{ store_name }}* có đơn hàng mới\\!
 --------------------------------------
-Mã đơn hàng: `{{ order_id }}`
+Mã ĐH: `#{{ order_id }}`
 Khách hàng: `{{ customer_name }}`
 Tổng tiền: *{{ total_amount }} {{ currency }}*
 Trạng thái: `{{ status }}`
-Sản phẩm:
-{{ product_list }}
+Thanh toán: `{{ payment_method }}`
 --------------------------------------
+*Sản phẩm:*
+{{ product_list }}
 """
-    # Các biến có thể sử dụng cho template đơn hàng mới:
-    # {{ store_name }}: Tên cửa hàng được cấu hình trong hệ thống.
-    # {{ order_id }}: ID của đơn hàng từ WooCommerce.
-    # {{ customer_name }}: Tên đầy đủ của khách hàng (kết hợp từ first_name và last_name).
-    # {{ total_amount }}: Tổng giá trị đơn hàng.
-    # {{ currency }}: Đơn vị tiền tệ (ví dụ: VND).
-    # {{ status }}: Trạng thái của đơn hàng (ví dụ: processing, completed).
-    # {{ payment_method }}: Phương thức thanh toán.
-    # {{ product_list }}: Danh sách sản phẩm, mỗi sản phẩm trên một dòng (đã được định dạng sẵn).
-
+    
     # Template cho tin nhắn thử nghiệm của hệ thống
-    DEFAULT_TELEGRAM_TEMPLATE_SYSTEM_TEST = """🎉 Đây là tin nhắn thử từ WooCommerce Aggregator \\(Bot\\: @{{ bot_username }}\)\\. Cấu hình *Hệ thống* của bạn đã hoạt động\\!"""
-    # Biến có thể sử dụng: {{ bot_username }}
-
+    DEFAULT_TELEGRAM_TEMPLATE_SYSTEM_TEST = """🎉 Đây là tin nhắn thử từ *Hệ thống* của bạn\\. Cấu hình Telegram đã hoạt động chính xác\\!"""
+    
     # Template cho tin nhắn thử nghiệm của người dùng cá nhân
-    DEFAULT_TELEGRAM_TEMPLATE_USER_TEST = """🎉 Đây là tin nhắn thử từ tài khoản của bạn \\({{ username }}\)\\. Cấu hình Telegram của bạn đã hoạt động\\!"""
-    # Biến có thể sử dụng: {{ username }}
+    DEFAULT_TELEGRAM_TEMPLATE_USER_TEST = """🎉 Đây là tin nhắn thử từ tài khoản *{{ username }}* của bạn\\. Cấu hình Telegram cá nhân đã hoạt động chính xác\\!"""

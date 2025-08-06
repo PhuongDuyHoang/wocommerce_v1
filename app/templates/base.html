@@ -132,9 +132,8 @@
         main {
             padding-top: 1.5rem;
         }
-        /* --- MODIFIED: Added z-index for toast container --- */
         .toast-container {
-            z-index: 1100; /* Ensure toasts appear above other content */
+            z-index: 1100;
         }
     </style>
 </head>
@@ -161,8 +160,13 @@
                 <li class="nav-item"><a class="nav-link {% if request.blueprint == 'users' %}active{% endif %}" href="{{ url_for('users.manage') }}"><i class="bi bi-people-fill"></i><span>Quản lý Người dùng</span></a></li>
                 {% endif %}
                 <hr class="mx-3">
+                
+                {% if not current_user.is_super_admin() %}
                 <li class="nav-item"><a class="nav-link {% if request.endpoint == 'settings.personal' %}active{% endif %}" href="{{ url_for('settings.personal') }}"><i class="bi bi-person-gear"></i><span>Cài đặt Cá nhân</span></a></li>
+                {% endif %}
+
                 <li class="nav-item"><a class="nav-link {% if request.endpoint == 'auth.change_password' %}active{% endif %}" href="{{ url_for('auth.change_password') }}"><i class="bi bi-key-fill"></i><span>Đổi mật khẩu</span></a></li>
+                
                 {% if current_user.is_super_admin() %}
                 <li class="nav-item"><a class="nav-link {% if request.endpoint == 'settings.system' %}active{% endif %}" href="{{ url_for('settings.system') }}"><i class="bi bi-gear-wide-connected"></i><span>Cài đặt Hệ thống</span></a></li>
                 {% endif %}
@@ -254,17 +258,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- MODIFIED: Added JavaScript to initialize and show toasts ---
     const toastElList = Array.from(document.querySelectorAll('.toast'));
     const toastList = toastElList.map(toastEl => {
         const toast = new bootstrap.Toast(toastEl, {
             autohide: true,
-            delay: 5000 // 5000ms = 5 giây. Bạn có thể thay đổi giá trị này.
+            delay: 5000
         });
         toast.show();
         return toast;
     });
-    // --- End of modification ---
 });
 </script>
 

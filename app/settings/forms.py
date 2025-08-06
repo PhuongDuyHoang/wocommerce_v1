@@ -1,52 +1,75 @@
 # app/settings/forms.py
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, BooleanField, TextAreaField, SubmitField, HiddenField
-from wtforms.validators import DataRequired, Optional, NumberRange
+from wtforms import StringField, SubmitField, BooleanField, IntegerField, TextAreaField, HiddenField
+from wtforms.validators import DataRequired, NumberRange, Optional
 
-# MODIFIED: Split SystemSettingsForm into multiple logical forms
+# --- Các Form cho Cài đặt Hệ thống ---
 
-class TelegramSettingsForm(FlaskForm):
-    """Form for system-wide Telegram settings."""
-    telegram_bot_token = StringField('Bot Token hệ thống', validators=[Optional()])
-    telegram_chat_id = StringField('Chat ID kênh hệ thống', validators=[Optional()])
+class SystemTelegramForm(FlaskForm):
+    """Form cho các cài đặt Telegram của hệ thống."""
+    telegram_bot_token = StringField('Bot Token (Hệ thống)', validators=[Optional()])
+    telegram_chat_id = StringField('Chat ID (Kênh hệ thống)', validators=[Optional()])
     telegram_send_delay_seconds = IntegerField(
-        'Độ trễ gửi tin (giây)',
-        default=2,
-        validators=[DataRequired(), NumberRange(min=0, max=60)]
+        'Độ trễ mặc định khi gửi tin (giây)',
+        validators=[DataRequired(), NumberRange(min=0)],
+        default=2
     )
-    submit = SubmitField('Lưu Cài đặt Telegram')
+    # MODIFIED: Changed variable name from 'submit' to 'submit_telegram'
+    submit_telegram = SubmitField('Lưu Cài đặt Telegram')
 
-class WorkerSettingsForm(FlaskForm):
-    """Form for background worker and data fetching settings."""
+
+class SystemWorkerForm(FlaskForm):
+    """Form cho các cài đặt tác vụ nền (worker)."""
     check_interval_minutes = IntegerField(
-        'Chu kỳ kiểm tra đơn hàng (phút)',
-        default=5,
-        validators=[DataRequired(), NumberRange(min=1, max=1440)]
+        'Tần suất kiểm tra đơn hàng (phút)',
+        validators=[DataRequired(), NumberRange(min=1)],
+        default=5
     )
-    fetch_product_images = BooleanField('Tải ảnh sản phẩm (chậm)')
-    submit = SubmitField('Lưu Cài đặt Worker')
+    fetch_product_images = BooleanField('Tự động lấy ảnh sản phẩm khi đồng bộ')
+    # MODIFIED: Changed variable name from 'submit' to 'submit_worker'
+    submit_worker = SubmitField('Lưu Cài đặt Worker')
 
-class OrderTableSettingsForm(FlaskForm):
-    """Form for saving the order table column configuration."""
-    order_table_columns = HiddenField('Cấu hình cột bảng đơn hàng')
-    submit = SubmitField('Lưu Cấu hình Bảng')
 
-class TemplateSettingsForm(FlaskForm):
-    """Form for system-wide message templates."""
-    telegram_template_new_order = TextAreaField('Template cho đơn hàng mới', render_kw={'rows': 8})
-    telegram_template_system_test = TextAreaField('Template cho tin nhắn thử hệ thống', render_kw={'rows': 3})
-    submit = SubmitField('Lưu Cấu hình Template')
+class SystemTableForm(FlaskForm):
+    """Form để lưu cấu hình bảng đơn hàng."""
+    order_table_columns = HiddenField('Cấu hình cột bảng đơn hàng', validators=[DataRequired()])
+    # MODIFIED: Changed variable name from 'submit' to 'submit_table'
+    submit_table = SubmitField('Lưu Cấu hình Bảng')
 
-# UserSettingsForm remains the same
-class UserSettingsForm(FlaskForm):
-    """
-    Form cho người dùng (bao gồm cả Admin) cấu hình các cài đặt cá nhân.
-    """
-    telegram_bot_token = StringField('Telegram Bot Token (Cá nhân)', validators=[Optional()])
-    telegram_chat_id = StringField('Telegram Chat ID (Cá nhân)', validators=[Optional()])
+
+class SystemTemplateForm(FlaskForm):
+    """Form cho các template tin nhắn mặc định của hệ thống."""
+    telegram_template_new_order = TextAreaField(
+        'Template cho đơn hàng mới',
+        validators=[DataRequired()],
+        render_kw={'rows': 10}
+    )
+    telegram_template_system_test = TextAreaField(
+        'Template cho tin nhắn thử của hệ thống',
+        validators=[DataRequired()],
+        render_kw={'rows': 4}
+    )
+    # MODIFIED: Changed variable name from 'submit' to 'submit_template'
+    submit_template = SubmitField('Lưu Templates')
+
+
+# --- Form cho Cài đặt Cá nhân ---
+
+class PersonalSettingsForm(FlaskForm):
+    """Form cho người dùng (vai trò User và Admin) tự cài đặt Telegram."""
+    telegram_bot_token = StringField('Bot Token Cá nhân', validators=[Optional()])
+    telegram_chat_id = StringField('Chat ID Cá nhân', validators=[Optional()])
     telegram_enabled = BooleanField('Bật thông báo Telegram cá nhân')
-    telegram_send_delay_seconds = IntegerField('Độ trễ gửi Telegram cá nhân (giây)', validators=[Optional(), NumberRange(min=0, max=60)])
-    telegram_template_new_order = TextAreaField('Template: Đơn hàng mới (Cá nhân)', validators=[Optional()], render_kw={"rows": 6})
-    telegram_template_user_test = TextAreaField('Template: Tin nhắn thử cá nhân', validators=[Optional()], render_kw={"rows": 3})
-    submit = SubmitField('Lưu Cài đặt Cá nhân')
+
+    telegram_send_delay_seconds = IntegerField(
+        'Độ trễ gửi tin nhắn (giây)',
+        validators=[Optional(), NumberRange(min=0)]
+    )
+    telegram_template_new_order = TextAreaField(
+        'Template cho đơn hàng mới (cá nhân)',
+        validators=[Optional()],
+        render_kw={'rows': 8}
+    )
+
+    submit = SubmitField('Lưu thay đổi')

@@ -6,7 +6,6 @@ from datetime import datetime
 import json
 
 class AppUser(UserMixin, db.Model):
-    # ... (Nội dung không đổi)
     __tablename__ = 'app_user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), index=True, unique=True, nullable=False)
@@ -44,15 +43,11 @@ class WooCommerceStore(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     last_checked = db.Column(db.DateTime, default=None, nullable=True)
     note = db.Column(db.Text, nullable=True)
-    
-    # MODIFIED: Made the timestamp column timezone-aware
     last_notified_order_timestamp = db.Column(db.DateTime(timezone=True), nullable=True)
-    
     orders = db.relationship('WooCommerceOrder', backref='store', lazy='dynamic', cascade="all, delete-orphan")
     def __repr__(self): return f'<WooCommerceStore {self.name}>'
 
 class WooCommerceOrder(db.Model):
-    # ... (Nội dung không đổi)
     __tablename__ = 'woocommerce_order'
     id = db.Column(db.Integer, primary_key=True)
     wc_order_id = db.Column(db.Integer, nullable=False, index=True)
@@ -74,7 +69,6 @@ class WooCommerceOrder(db.Model):
     def __repr__(self): return f'<WooCommerceOrder ID:{self.wc_order_id} from Store ID:{self.store_id}>'
 
 class OrderLineItem(db.Model):
-    # ... (Nội dung không đổi)
     __tablename__ = 'order_line_item'
     id = db.Column(db.Integer, primary_key=True)
     wc_line_item_id = db.Column(db.Integer, nullable=False, index=True)
@@ -96,13 +90,40 @@ class OrderLineItem(db.Model):
             return []
 
 class Setting(db.Model):
-    # ... (Nội dung không đổi)
     __tablename__ = 'setting'
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.Text, nullable=True)
 
+    # --- MODIFIED: Added helper methods to get and set settings easily ---
+    @classmethod
+    def get_value(cls, key, default=None):
+        """
+        Lấy giá trị của một cài đặt từ cơ sở dữ liệu.
+        Trả về `default` nếu không tìm thấy.
+        """
+        setting = cls.query.get(key)
+        if setting:
+            return setting.value
+        return default
+
+    @classmethod
+    def set_value(cls, key, value):
+        """
+        Lưu hoặc cập nhật giá trị của một cài đặt vào cơ sở dữ liệu.
+        Tự động commit thay đổi.
+        """
+        setting = cls.query.get(key)
+        if setting:
+            setting.value = str(value)
+        else:
+            setting = cls(key=key, value=str(value))
+            db.session.add(setting)
+        # Không commit ở đây để cho phép lưu nhiều setting một lúc
+        # db.session.commit()
+    # --- End of modification ---
+
+
 class BackgroundTask(db.Model):
-    # ... (Nội dung không đổi)
     __tablename__ = 'background_task'
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.String(36), index=True, unique=True, nullable=False)

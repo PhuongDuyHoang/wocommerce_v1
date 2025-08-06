@@ -21,7 +21,7 @@
             <form action="{{ url_for('settings.system') }}" method="post" novalidate>
                 {{ telegram_form.hidden_tag() }}
                 <div class="card-body">
-                    <p class="text-muted small">Bot của hệ thống sẽ gửi thông báo đến kênh này.</p>
+                    <p class="text-muted small">Bot của hệ thống sẽ gửi thông báo đến kênh này và được dùng làm bot mặc định cho người dùng.</p>
                     <div class="mb-3">
                         {{ telegram_form.telegram_bot_token.label(class="form-label") }}
                         {{ telegram_form.telegram_bot_token(class="form-control") }}
@@ -35,13 +35,9 @@
                         {{ telegram_form.telegram_send_delay_seconds(class="form-control") }}
                     </div>
                 </div>
-                <div class="card-footer d-flex justify-content-between align-items-center bg-light">
-                    <form action="{{ url_for('settings.test_system_telegram') }}" method="POST" class="m-0">
-                        <button type="submit" class="btn btn-outline-info">
-                            <i class="bi bi-send-check"></i> Gửi tin nhắn thử
-                        </button>
-                    </form>
-                    {{ telegram_form.submit(class="btn btn-primary") }}
+                <div class="card-footer text-end bg-light">
+                    {# MODIFIED: Calling the new field name 'submit_telegram' #}
+                    {{ telegram_form.submit_telegram(class="btn btn-primary") }}
                 </div>
             </form>
         </div>
@@ -63,7 +59,8 @@
                     </div>
                 </div>
                 <div class="card-footer text-end bg-light">
-                    {{ worker_form.submit(class="btn btn-primary") }}
+                    {# MODIFIED: Calling the new field name 'submit_worker' #}
+                    {{ worker_form.submit_worker(class="btn btn-primary") }}
                 </div>
             </form>
         </div>
@@ -89,7 +86,8 @@
                     </ul>
                 </div>
                 <div class="card-footer text-end bg-light">
-                    {{ table_form.submit(class="btn btn-primary") }}
+                    {# MODIFIED: Calling the new field name 'submit_table' #}
+                    {{ table_form.submit_table(class="btn btn-primary") }}
                 </div>
             </form>
         </div>
@@ -101,15 +99,26 @@
                 <div class="card-body">
                     <div class="mb-3">
                         {{ template_form.telegram_template_new_order.label(class="form-label") }}
-                        {{ template_form.telegram_template_new_order(class="form-control") }}
+                        {{ template_form.telegram_template_new_order(class="form-control", rows=10) }}
+                        <div class="form-text mt-2">
+                            <strong>Các biến có thể dùng:</strong><br>
+                            <code>{{ store_name }}</code>, <code>{{ order_id }}</code>, <code>{{ customer_name }}</code>, <code>{{ total_amount }}</code>, 
+                            <code>{{ currency }}</code>, <code>{{ status }}</code>, <code>{{ payment_method }}</code>, <code>{{ product_list }}</code>
+                        </div>
                     </div>
+                    <hr>
                     <div class="mb-3">
                         {{ template_form.telegram_template_system_test.label(class="form-label") }}
-                        {{ template_form.telegram_template_system_test(class="form-control") }}
+                        {{ template_form.telegram_template_system_test(class="form-control", rows=4) }}
+                        <div class="form-text mt-2">
+                            <strong>Các biến có thể dùng:</strong> 
+                            <code>{{ bot_username }}</code>
+                        </div>
                     </div>
                 </div>
                 <div class="card-footer text-end bg-light">
-                    {{ template_form.submit(class="btn btn-primary") }}
+                    {# MODIFIED: Calling the new field name 'submit_template' #}
+                    {{ template_form.submit_template(class="btn btn-primary") }}
                 </div>
             </form>
         </div>
@@ -120,7 +129,7 @@
             <div class="card-header"><h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>Hành động Hệ thống</h5></div>
             <div class="card-body">
                 <p class="small">Cho phép hoặc chặn người dùng mới tự đăng ký tài khoản.</p>
-                <form action="{{ url_for('settings.toggle_registration') }}" method="POST">
+                <form action="{{ url_for('settings.toggle_registration') }}" method="POST" class="mb-3">
                     <button type="submit" class="btn {% if enable_registration_status %}btn-danger{% else %}btn-success{% endif %} w-100">
                         {% if enable_registration_status %}
                             <i class="bi bi-x-circle-fill me-2"></i>Tắt Đăng ký
@@ -129,10 +138,20 @@
                         {% endif %}
                     </button>
                 </form>
+
+                <hr>
+                
+                <p class="small">Gửi tin nhắn thử đến kênh Telegram của hệ thống để kiểm tra cấu hình.</p>
+                 <form action="{{ url_for('settings.test_system_telegram') }}" method="POST">
+                    <button type="submit" class="btn btn-outline-info w-100">
+                        <i class="bi bi-send-check"></i> Gửi tin nhắn thử Hệ thống
+                    </button>
+                </form>
             </div>
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -142,10 +161,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const tableSettingsForm = document.getElementById('table-settings-form');
     if (tableSettingsForm) {
         const columnList = document.getElementById('column-list');
-        // --- MODIFIED: Select the hidden input using its correct, prefixed ID ---
         const hiddenInput = document.getElementById('table-order_table_columns');
         
-        if (columnList && hiddenInput) { // Ensure hiddenInput is found
+        if (columnList && hiddenInput) {
             new Sortable(columnList, { handle: '.drag-handle', animation: 150 });
             
             tableSettingsForm.addEventListener('submit', function(event) {
