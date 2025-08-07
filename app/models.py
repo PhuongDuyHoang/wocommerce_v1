@@ -135,3 +135,17 @@ class Design(db.Model):
     def __repr__(self):
         return f'<Design {self.name}>'
 # === END: THÊM MODEL MỚI CHO DESIGN ===
+
+# === START: THÊM MODEL MỚI CHO FULFILLMENT SETTING ===
+class FulfillmentSetting(db.Model):
+    __tablename__ = 'fulfillment_setting'
+    id = db.Column(db.Integer, primary_key=True)
+    provider_name = db.Column(db.String(50), nullable=False, index=True) # VD: "mangotee"
+    api_key = db.Column(db.String(255), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('app_user.id'), nullable=False)
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'provider_name', name='_user_provider_uc'),)
+
+    def __repr__(self):
+        return f'<FulfillmentSetting for User ID {self.user_id} - {self.provider_name}>'
+# === END: THÊM MODEL MỚI CHO FULFILLMENT SETTING ===

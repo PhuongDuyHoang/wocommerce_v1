@@ -6,11 +6,14 @@ import json
 import asyncio
 
 from . import settings_bp
-from .forms import SystemTelegramForm, SystemWorkerForm, PersonalSettingsForm, SystemTableForm, SystemTemplateForm
+# === START: DỌN DẸP VÀ GỘP CÁC IMPORT ===
+from .forms import (SystemTelegramForm, SystemWorkerForm, SystemTableForm, 
+                    SystemTemplateForm, PersonalSettingsForm, FulfillmentSettingsForm)
 from app import db, worker
-from app.models import Setting, AppUser
+from app.models import Setting, AppUser, FulfillmentSetting
 from app.notifications import send_telegram_message, send_test_telegram_message
-from app.decorators import super_admin_required
+from app.decorators import super_admin_required, admin_or_super_admin_required
+# === END: DỌN DẸP VÀ GỘP CÁC IMPORT ===
 
 @settings_bp.route('/system', methods=['GET', 'POST'])
 @login_required
@@ -54,7 +57,6 @@ def system():
         flash('Đã cập nhật các template tin nhắn của hệ thống.', 'success')
         return redirect(url_for('settings.system'))
 
-    # Populate forms on GET request
     if request.method == 'GET':
         telegram_form.telegram_bot_token.data = Setting.get_value('TELEGRAM_BOT_TOKEN', '')
         telegram_form.telegram_chat_id.data = Setting.get_value('TELEGRAM_CHAT_ID', '')
@@ -66,20 +68,15 @@ def system():
         template_form.telegram_template_new_order.data = Setting.get_value('DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER', current_app.config['DEFAULT_TELEGRAM_TEMPLATE_NEW_ORDER'])
         template_form.telegram_template_system_test.data = Setting.get_value('DEFAULT_TELEGRAM_TEMPLATE_SYSTEM_TEST', current_app.config['DEFAULT_TELEGRAM_TEMPLATE_SYSTEM_TEST'])
 
-    # === SỬA LỖI: BỌC TRONG TRY-EXCEPT ĐỂ XỬ LÝ DỮ LIỆU HỎNG ===
     try:
         order_columns_config_json = Setting.get_value('ORDER_TABLE_COLUMNS', '[]')
-        # Xử lý trường hợp giá trị là None hoặc rỗng
         if not order_columns_config_json:
             order_columns_config_json = '[]'
         order_columns_config = json.loads(order_columns_config_json)
     except (json.JSONDecodeError, TypeError):
-        # Bắt lỗi nếu JSON không hợp lệ hoặc giá trị là None
         order_columns_config = []
         flash('Cấu hình cột bảng bị lỗi hoặc không tồn tại, đã tạm thời đặt lại về mặc định.', 'warning')
-        # Tự động sửa lỗi bằng cách lưu lại giá trị mặc định vào DB
         Setting.set_value('ORDER_TABLE_COLUMNS', '[]')
-    # === KẾT THÚC SỬA LỖI ===
     
     enable_registration_status = Setting.get_value('ENABLE_USER_REGISTRATION', 'False').lower() == 'true'
 
@@ -175,8 +172,6 @@ def test_system_new_order_template():
 @login_required
 def test_personal_new_order_template():
     template_content = request.form.get('template_content')
-    
-    # Ưu tiên token cá nhân, nếu không có thì dùng token hệ thống
     bot_token = current_user.telegram_bot_token or Setting.get_value('TELEGRAM_BOT_TOKEN')
     chat_id = current_user.telegram_chat_id
 
@@ -185,3 +180,44 @@ def test_personal_new_order_template():
 
     success, message = asyncio.run(send_test_telegram_message(bot_token, chat_id, template_content))
     return jsonify({'success': success, 'message': message})
+
+
+@settings_bp.route('/fulfill', methods=['GET', 'POST'])
+@login_required
+@admin_or_super_admin_required
+def fulfill():
+    form = FulfillmentSettingsForm()
+
+    if form.validate_on_submit():
+        mangotee_setting = FulfillmentSetting.query.filter_by(
+            user_id=current_user.id,
+            provider_name='mangotee'
+        ).first()
+
+        if mangotee_setting:
+            mangotee_setting.api_key = form.mangotee_api_key.data
+        else:
+            mangotee_setting = FulfillmentSetting(
+                user_id=current_user.id,
+                provider_name='mangotee',
+                api_key=form.mangotee_api_key.data
+            )
+            db.session.add(mangotee_setting)
+        
+        db.session.commit()
+        flash('Cài đặt API Key cho MangoTee đã được cập nhật.', 'success')
+        return redirect(url_for('settings.fulfill'))
+
+    elif request.method == 'GET':
+        mangotee_setting = FulfillmentSetting.query.filter_by(
+            user_id=current_user.id,
+            provider_name='mangotee'
+        ).first()
+        if mangotee_setting:
+            form.mangotee_api_key.data = mangotee_setting.api_key
+
+    return render_template(
+        'settings/fulfill_settings.html',
+        title='Cài đặt Fulfillment',
+        form=form
+    )

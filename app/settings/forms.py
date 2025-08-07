@@ -4,6 +4,9 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, BooleanField, IntegerField, TextAreaField, HiddenField
 from wtforms.validators import DataRequired, NumberRange, Optional
 
+# MODIFIED: Thêm validators cho form mới
+from wtforms.validators import Length
+
 # --- Các Form cho Cài đặt Hệ thống ---
 
 class SystemTelegramForm(FlaskForm):
@@ -68,3 +71,16 @@ class PersonalSettingsForm(FlaskForm):
         render_kw={'rows': 10}
     )
     submit = SubmitField('Lưu thay đổi')
+
+# === START: THÊM FORM MỚI CHO FULFILLMENT SETTING ===
+class FulfillmentSettingsForm(FlaskForm):
+    """
+    Form để admin nhập API key cho các nhà cung cấp fulfillment.
+    """
+    mangotee_api_key = StringField(
+        'MangoTee API Key',
+        validators=[Optional(), Length(max=255)],
+        render_kw={"placeholder": "Nhập API Key của bạn từ MangoTee"}
+    )
+    submit = SubmitField('Lưu Cài đặt Fulfillment')
+# === END: THÊM FORM MỚI CHO FULFILLMENT SETTING ===

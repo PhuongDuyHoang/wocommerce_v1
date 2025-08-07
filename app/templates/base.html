@@ -180,7 +180,7 @@
 <nav id="sidebarMenu" class="sidebar">
     <div class="sidebar-header">
         <a class="navbar-brand d-flex align-items-center text-dark text-decoration-none" href="{{ url_for('main.dashboard') }}">
-            <img src="https://i.imgur.com/832g8k4.png" alt="Logo" class="sidebar-brand-icon">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/WooCommerce_logo.svg/1200px-WooCommerce_logo.svg.png" alt="Logo" class="sidebar-brand-icon">
             <span class="sidebar-brand-text ms-2 fs-5 fw-bold">PTECH</span>
         </a>
     </div>
@@ -218,16 +218,25 @@
                 <hr class="mx-3">
                 
                 <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint in ['settings.personal', 'settings.system', 'auth.change_password'] %}active{% endif %}" data-bs-toggle="collapse" href="#settingsSubmenu" role="button" aria-expanded="false" aria-controls="settingsSubmenu">
+                    <a class="nav-link {% if request.endpoint in ['settings.personal', 'settings.system', 'auth.change_password', 'settings.fulfill'] %}active{% endif %}" data-bs-toggle="collapse" href="#settingsSubmenu" role="button" aria-expanded="false" aria-controls="settingsSubmenu">
                         <i class="bi bi-gear-fill"></i>
                         <span>Setting</span>
                     </a>
-                    <div class="collapse nav-submenu {% if request.endpoint in ['settings.personal', 'settings.system', 'auth.change_password'] %}show{% endif %}" id="settingsSubmenu">
-                        <ul class="nav flex-column">
+                    <div class="collapse nav-submenu {% if request.endpoint in ['settings.personal', 'settings.system', 'auth.change_password', 'settings.fulfill'] %}show{% endif %}" id="settingsSubmenu">
+                    <ul class="nav flex-column">
                             <li class="nav-item"><a class="nav-link {% if request.endpoint == 'auth.change_password' %}active{% endif %}" href="{{ url_for('auth.change_password') }}"><span>Đổi mật khẩu</span></a></li>
+                            
+                            {% if current_user.is_super_admin() or current_user.is_admin() %}
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.endpoint == 'settings.fulfill' %}active{% endif %}" href="{{ url_for('settings.fulfill') }}">
+                                    <span>Cài đặt Fulfillment</span>
+                                </a>
+                            </li>
+                            {% endif %}
                             {% if not current_user.is_super_admin() %}
                             <li class="nav-item"><a class="nav-link {% if request.endpoint == 'settings.personal' %}active{% endif %}" href="{{ url_for('settings.personal') }}"><span>Cài đặt Cá nhân</span></a></li>
                             {% endif %}
+                            
                             {% if current_user.is_super_admin() %}
                             <li class="nav-item"><a class="nav-link {% if request.endpoint == 'settings.system' %}active{% endif %}" href="{{ url_for('settings.system') }}"><span>Cài đặt Hệ thống</span></a></li>
                             {% endif %}
@@ -277,15 +286,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const body = document.body;
     const sidebar = document.getElementById('sidebarMenu');
     const sidebarToggle = document.getElementById('sidebarToggle');
-    
-    // === START: SỬA LỖI - VIẾT LẠI HOÀN TOÀN LOGIC MENU POP-OUT ===
     let openPopoverInstance = null;
 
     function applySidebarState(isCollapsed) {
         body.classList.toggle('sidebar-collapsed', isCollapsed);
         if (sidebar) sidebar.classList.toggle('collapsed', isCollapsed);
-        
-        // Luôn đóng popover khi thay đổi trạng thái sidebar
         if (openPopoverInstance) {
             openPopoverInstance.hide();
         }
@@ -334,19 +339,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Đóng popover khác khi một popover mới được mở
         parentLink.addEventListener('show.bs.popover', () => {
             if (openPopoverInstance && openPopoverInstance !== popover) {
                 openPopoverInstance.hide();
             }
         });
         
-        // Lưu lại popover đang mở
         parentLink.addEventListener('shown.bs.popover', () => {
             openPopoverInstance = popover;
         });
 
-        // Xóa trạng thái khi popover đóng
         parentLink.addEventListener('hidden.bs.popover', () => {
             if (openPopoverInstance === popover) {
                 openPopoverInstance = null;
@@ -359,7 +361,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.stopPropagation();
                 popover.toggle();
             } else {
-                // Đảm bảo không có popover nào còn mở khi sidebar mở rộng
                 if (openPopoverInstance) {
                     openPopoverInstance.hide();
                 }
@@ -367,20 +368,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Đóng popover khi click ra ngoài
     document.addEventListener('click', function (e) {
         if (!openPopoverInstance) return;
-
-        // Lấy phần tử gốc đã kích hoạt popover và chính popover đó
         const triggerElement = openPopoverInstance._element;
         const popoverElement = openPopoverInstance.tip;
-        
-        // Nếu click không nằm trong trigger và cũng không nằm trong popover
         if (!triggerElement.contains(e.target) && (popoverElement && !popoverElement.contains(e.target))) {
             openPopoverInstance.hide();
         }
     });
-    // === END: SỬA LỖI - VIẾT LẠI HOÀN TOÀN LOGIC MENU POP-OUT ===
 });
 </script>
 
