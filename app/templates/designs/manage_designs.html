@@ -2,25 +2,53 @@
 
 {% block styles %}
 <style>
+    /* === START: SỬA LỖI - Thêm nền xám cho ảnh thu nhỏ === */
     .design-image {
         width: 100px;
         height: 100px;
         object-fit: contain;
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        padding: 5px;
+        background-color: #f8f9fa; /* Thêm lại nền xám nhạt */
+        border: 1px solid #dee2e6;  /* Thêm lại đường viền */
+        border-radius: 4px;         /* Bo góc cho đẹp */
+        padding: 5px;               /* Thêm khoảng đệm */
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    /* === END: SỬA LỖI === */
+
+    .design-image:hover {
+        transform: scale(1.05);
     }
     .action-buttons .btn {
-        width: 38px; /* Đảm bảo các nút có chiều rộng bằng nhau */
+        width: 38px;
     }
     #bulk-actions-container {
-        display: none; /* Mặc định ẩn */
+        display: none;
     }
     .form-error {
         color: #dc3545;
         font-size: 0.875em;
         margin-top: 0.25rem;
+    }
+    #imageModal .modal-content {
+        background-color: transparent;
+        border: none;
+        box-shadow: none;
+    }
+    #imageModal .modal-body {
+        padding: 0;
+    }
+    #imageModal .modal-header {
+        position: absolute;
+        top: -1.5rem;
+        right: -1.5rem;
+        z-index: 10;
+        border-bottom: 0;
+    }
+    #modalImage {
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
     }
 </style>
 {% endblock %}
@@ -70,8 +98,10 @@
                         <td class="text-center"><input class="form-check-input row-checkbox" type="checkbox" value="{{ design.id }}"></td>
                         <td>{{ design.name }}</td>
                         <td class="text-center">
-                            <img src="{{ design.image_url }}" alt="{{ design.name }}" class="design-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                            <a href="{{ design.image_url }}" target="_blank" class="d-block mt-1">Link</a>
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-large-src="{{ design.image_url }}">
+                                <img src="{{ design.image_url }}" alt="{{ design.name }}" class="design-image" onerror="this.parentElement.innerHTML = 'Không thể tải ảnh';">
+                            </a>
+                            <a href="{{ design.image_url }}" target="_blank" class="d-block mt-1 small">Link</a>
                         </td>
                         <td class="text-center action-buttons">
                             <button class="btn btn-sm btn-outline-secondary edit-btn" 
@@ -99,7 +129,7 @@
     <div class="card-footer">
         <nav aria-label="Design navigation">
             <ul class="pagination justify-content-center mb-0">
-                <li class="page-item {% if not designs.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=designs.prev_num, search_query=search_query) }}">&laquo;</a></li>
+                <li class="page-item {% if not designs.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=designs.prev_num, search_query=search_query) }}">«</a></li>
                 {% for page_num in designs.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                     {% if page_num %}
                         <li class="page-item {% if page_num == designs.page %}active{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=page_num, search_query=search_query) }}">{{ page_num }}</a></li>
@@ -107,7 +137,7 @@
                         <li class="page-item disabled"><span class="page-link">...</span></li>
                     {% endif %}
                 {% endfor %}
-                <li class="page-item {% if not designs.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=designs.next_num, search_query=search_query) }}">&raquo;</a></li>
+                <li class="page-item {% if not designs.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=designs.next_num, search_query=search_query) }}">»</a></li>
             </ul>
         </nav>
     </div>
@@ -124,7 +154,7 @@
             <form id="designForm" novalidate>
                 <div class="modal-body">
                     <input type="hidden" id="designId" name="design_id">
-                    {{ form.hidden_tag() }} {# CSRF Token #}
+                    {{ form.hidden_tag() }}
                     <div class="mb-3">
                         {{ form.name.label(class="form-label") }}
                         {{ form.name(class="form-control", id="designName") }}
@@ -132,7 +162,7 @@
                     </div>
                     <div class="mb-3">
                         {{ form.image_url.label(class="form-label") }}
-                        {{ form.image_url(class="form-control", id="designImageUrl") }}
+                        {{ form.image_url(class="form-control", id="designImageUrl", placeholder="Dán link Google Drive share vào đây") }}
                         <div id="image_url-error" class="form-error"></div>
                     </div>
                 </div>
@@ -144,19 +174,73 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <img src="" class="img-fluid" id="modalImage" alt="Hình ảnh design">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmDeleteModalLabel">Xác nhận Xóa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="confirmDeleteModalBody">
+                Bạn có chắc chắn muốn thực hiện hành động này?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Xóa</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const confirmDeleteModalEl = document.getElementById('confirmDeleteModal');
+    const confirmDeleteModal = new bootstrap.Modal(confirmDeleteModalEl);
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    let actionToConfirm = null;
+    
+    function showToast(message, category = 'info') {
+        const toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) return;
+        let bgColor = 'bg-primary';
+        if (category === 'success') bgColor = 'bg-success';
+        if (category === 'danger') bgColor = 'bg-danger';
+        const toastEl = document.createElement('div');
+        toastEl.className = `toast align-items-center text-white ${bgColor} border-0`;
+        toastEl.setAttribute('role', 'alert');
+        toastEl.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+        toastContainer.appendChild(toastEl);
+        const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+        toast.show();
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+    }
+
     const designModalEl = document.getElementById('designModal');
     const designModal = new bootstrap.Modal(designModalEl);
     const designForm = document.getElementById('designForm');
     const modalLabel = document.getElementById('designModalLabel');
     const submitBtn = document.getElementById('submitDesignBtn');
+    const designImageUrlInput = document.getElementById('designImageUrl');
+    const tableBody = document.querySelector('tbody');
     const designIdInput = document.getElementById('designId');
 
-    // Mở modal để thêm mới
     document.getElementById('create-design-btn').addEventListener('click', function() {
         modalLabel.textContent = 'Thêm Design mới';
         submitBtn.textContent = 'Tạo';
@@ -167,53 +251,59 @@ document.addEventListener('DOMContentLoaded', function() {
         designModal.show();
     });
 
-    // Mở modal để chỉnh sửa
-    document.querySelector('tbody').addEventListener('click', async function(e) {
-        if (e.target.closest('.edit-btn')) {
-            const btn = e.target.closest('.edit-btn');
-            const designId = btn.dataset.id;
-            
+    tableBody.addEventListener('click', async function(e) {
+        const editBtn = e.target.closest('.edit-btn');
+        const deleteBtn = e.target.closest('.delete-btn');
+
+        if (editBtn) {
+            const designId = editBtn.dataset.id;
             clearErrors();
-            
-            // Lấy dữ liệu hiện tại của design
             const response = await fetch(`/designs/details/${designId}`);
             const data = await response.json();
-
             if (data.success) {
                 modalLabel.textContent = 'Chỉnh sửa Design';
                 submitBtn.textContent = 'Lưu thay đổi';
                 designForm.action = `/designs/edit/${designId}`;
                 document.getElementById('designName').value = data.name;
-                document.getElementById('designImageUrl').value = data.image_url;
+                designImageUrlInput.value = data.image_url;
                 designIdInput.value = designId;
                 designModal.show();
             } else {
-                alert('Không thể tải dữ liệu design.');
+                showToast('Không thể tải dữ liệu design.', 'danger');
             }
+        }
+        
+        if (deleteBtn) {
+            const designId = deleteBtn.dataset.id;
+            document.getElementById('confirmDeleteModalBody').textContent = 'Bạn có chắc chắn muốn xóa design này?';
+            
+            actionToConfirm = async () => {
+                const response = await fetch(`/designs/delete/${designId}`, { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById(`design-row-${designId}`).remove();
+                    showToast(data.message, 'success');
+                } else {
+                    showToast('Xóa thất bại.', 'danger');
+                }
+            };
+
+            confirmDeleteModal.show();
         }
     });
 
-    // Xử lý submit form (Thêm/Sửa)
     designForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         clearErrors();
-        
-        const response = await fetch(this.action, {
-            method: 'POST',
-            body: new FormData(this)
-        });
-
+        const response = await fetch(this.action, { method: 'POST', body: new FormData(this) });
         const data = await response.json();
-
         if (data.success) {
             designModal.hide();
             window.location.reload();
         } else if (data.errors) {
             for (const field in data.errors) {
                 const errorDiv = document.getElementById(`${field}-error`);
-                if (errorDiv) {
-                    errorDiv.textContent = data.errors[field][0];
-                }
+                if (errorDiv) { errorDiv.textContent = data.errors[field][0]; }
             }
         }
     });
@@ -222,25 +312,14 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
     }
 
-    // Xóa từng design
-    document.querySelector('tbody').addEventListener('click', async function(e) {
-        if (e.target.closest('.delete-btn')) {
-            const btn = e.target.closest('.delete-btn');
-            const designId = btn.dataset.id;
-
-            if (confirm('Bạn có chắc chắn muốn xóa design này?')) {
-                const response = await fetch(`/designs/delete/${designId}`, { method: 'POST' });
-                const data = await response.json();
-                if (data.success) {
-                    document.getElementById(`design-row-${designId}`).remove();
-                } else {
-                    alert('Xóa thất bại.');
-                }
-            }
+    confirmDeleteBtn.addEventListener('click', function() {
+        if (typeof actionToConfirm === 'function') {
+            actionToConfirm();
+            actionToConfirm = null;
         }
+        confirmDeleteModal.hide();
     });
 
-    // Xử lý chọn và xóa hàng loạt
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
     const rowCheckboxes = document.querySelectorAll('.row-checkbox');
     const bulkActionsContainer = document.getElementById('bulk-actions-container');
@@ -257,34 +336,66 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    selectAllCheckbox.addEventListener('change', function() {
-        rowCheckboxes.forEach(cb => cb.checked = this.checked);
-        updateBulkActionsVisibility();
-    });
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            rowCheckboxes.forEach(cb => cb.checked = this.checked);
+            updateBulkActionsVisibility();
+        });
+    }
 
-    rowCheckboxes.forEach(cb => {
-        cb.addEventListener('change', updateBulkActionsVisibility);
-    });
-
-    deleteSelectedBtn.addEventListener('click', async function() {
-        const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
-        
-        if (selectedIds.length === 0) return;
-
-        if (confirm(`Bạn có chắc muốn xóa vĩnh viễn ${selectedIds.length} design đã chọn?`)) {
-            const response = await fetch("{{ url_for('designs.delete_selected') }}", {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ ids: selectedIds })
-            });
-            const data = await response.json();
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert('Lỗi khi xóa: ' + data.message);
-            }
+    tableBody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('row-checkbox')) {
+            updateBulkActionsVisibility();
         }
     });
+
+    if (deleteSelectedBtn) {
+        deleteSelectedBtn.addEventListener('click', async function() {
+            const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+            if (selectedIds.length === 0) return;
+
+            document.getElementById('confirmDeleteModalBody').textContent = `Bạn có chắc muốn xóa vĩnh viễn ${selectedIds.length} design đã chọn?`;
+
+            actionToConfirm = async () => {
+                const response = await fetch("{{ url_for('designs.delete_selected') }}", {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ ids: selectedIds })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showToast('Lỗi khi xóa: ' + data.message, 'danger');
+                }
+            };
+
+            confirmDeleteModal.show();
+        });
+    }
+
+    designImageUrlInput.addEventListener('input', function() {
+        const url = this.value;
+        const regex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/;
+        const match = url.match(regex);
+        if (match && match[1]) {
+            const fileId = match[1];
+            // === START: SỬA LỖI - Dùng đúng định dạng link googleusercontent theo yêu cầu ===
+            this.value = `https://lh3.googleusercontent.com/d/${fileId}`;
+            // === END: SỬA LỖI ===
+        }
+    });
+
+    const imageModal = document.getElementById('imageModal');
+    if (imageModal) {
+        imageModal.addEventListener('show.bs.modal', function (event) {
+            const triggerElement = event.relatedTarget;
+            const largeImageUrl = triggerElement.getAttribute('data-large-src');
+            const modalImage = imageModal.querySelector('#modalImage');
+            modalImage.src = largeImageUrl;
+        });
+    }
 });
 </script>
 {% endblock %}
