@@ -73,13 +73,12 @@
         border-radius: 8px;
     }
 
-    /* === SỬA LỖI: Tối ưu hóa ô ghi chú (phiên bản cuối) === */
     .td-note-cell {
-        position: relative; /* Làm anchor cho wrapper */
+        position: relative;
         padding: 0 !important;
     }
     .note-wrapper {
-        position: absolute; /* Chiếm 100% không gian của ô */
+        position: absolute;
         top: 0;
         left: 0;
         width: 100%;
@@ -88,7 +87,7 @@
         flex-direction: column;
     }
     .order-note-textarea {
-        flex-grow: 1; /* Co giãn lấp đầy không gian */
+        flex-grow: 1;
         width: 100%;
         border: none;
         border-radius: 0;
@@ -120,6 +119,22 @@
     .save-status.saving { background-color: #0dcaf0; }
     .save-status.saved { background-color: #198754; }
     .save-status.error { background-color: #dc3545; }
+
+    /* === CSS MỚI CHO CẬP NHẬT TRẠNG THÁI === */
+    .status-update-form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 200px; /* Đảm bảo đủ không gian */
+    }
+    .status-select {
+        flex-grow: 1; /* Cho select chiếm phần lớn không gian */
+    }
+    .status-save-btn .spinner-border {
+        width: 1rem;
+        height: 1rem;
+        border-width: .2em;
+    }
 </style>
 {% endblock %}
 
@@ -185,9 +200,29 @@
                                 #{{ order.wc_order_id }}
                             {% elif column.type == 'currency' %}
                                 ${{ "{:,.2f}".format(order[column.key] or 0) }}
+                            
+                            {# === THAY ĐỔI CÁCH HIỂN THỊ CỘT TRẠNG THÁI === #}
                             {% elif column.key == 'status' %}
-                                {% set status_map = {'processing': 'bg-primary','completed': 'bg-success','on-hold': 'bg-warning text-dark','pending': 'bg-secondary','cancelled': 'bg-danger','refunded': 'bg-dark','failed': 'bg-danger'} %}
-                                <span class="badge {{ status_map.get(order.status, 'bg-light text-dark') }}">{{ order.status }}</span>
+                                {% set statuses = [
+                                    ('pending', 'Chờ thanh toán'), ('processing', 'Đang xử lý'),
+                                    ('on-hold', 'Tạm giữ'), ('completed', 'Hoàn thành'),
+                                    ('cancelled', 'Đã hủy'), ('refunded', 'Đã hoàn tiền'),
+                                    ('failed', 'Thất bại')
+                                ] %}
+                                <div class="status-update-form">
+                                    <select class="form-select form-select-sm status-select" data-order-id="{{ order.id }}" data-original-status="{{ order.status }}">
+                                        {% for status_val, status_text in statuses %}
+                                            <option value="{{ status_val }}" {% if order.status == status_val %}selected{% endif %}>
+                                                {{ status_text }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button class="btn btn-sm btn-primary status-save-btn" disabled title="Lưu thay đổi">
+                                        <i class="bi bi-save"></i>
+                                    </button>
+                                </div>
+                            {# === KẾT THÚC THAY ĐỔI === #}
+
                             {% elif column.key == 'products' %}
                                 <ul class="product-list">
                                 {% for item in order.line_items %}
@@ -259,6 +294,7 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ... (code cho image modal và ghi chú giữ nguyên)
     const imageModal = document.getElementById('imageModal');
     if (imageModal) {
         imageModal.addEventListener('show.bs.modal', function (event) {
@@ -276,44 +312,84 @@ document.addEventListener('DOMContentLoaded', function() {
             const originalValue = this.dataset.originalValue;
             const newValue = this.value;
             const statusDiv = this.parentElement.querySelector('.save-status');
-
-            if (originalValue.trim() === newValue.trim()) {
-                return;
-            }
-
+            if (originalValue.trim() === newValue.trim()) { return; }
             statusDiv.textContent = 'Đang lưu...';
             statusDiv.className = 'save-status saving show';
-
             fetch(`/orders/update_note/${orderId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ note: newValue })
             })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { throw err; });
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
+            .then(response => response.json().then(data => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (ok && data.success) {
                     this.dataset.originalValue = newValue;
                     statusDiv.textContent = 'Đã lưu!';
                     statusDiv.className = 'save-status saved show';
                 } else {
-                    throw new Error(data.message);
+                    throw new Error(data.message || 'Lỗi không xác định.');
                 }
             })
             .catch(error => {
                 statusDiv.textContent = 'Lỗi!';
                 statusDiv.className = 'save-status error show';
                 this.value = originalValue;
-                alert('Lỗi khi lưu ghi chú: ' + (error.message || 'Lỗi mạng, không thể kết nối đến server.'));
+                alert('Lỗi khi lưu ghi chú: ' + error.message);
             })
             .finally(() => {
-                setTimeout(() => {
-                    statusDiv.classList.remove('show');
-                }, 2000);
+                setTimeout(() => { statusDiv.classList.remove('show'); }, 2000);
+            });
+        });
+    });
+
+    // === JAVASCRIPT MỚI ĐỂ CẬP NHẬT TRẠNG THÁI ===
+    const statusSelects = document.querySelectorAll('.status-select');
+    statusSelects.forEach(select => {
+        select.addEventListener('change', function() {
+            const originalStatus = this.dataset.originalStatus;
+            const newStatus = this.value;
+            const saveBtn = this.nextElementSibling;
+            saveBtn.disabled = (originalStatus === newStatus);
+        });
+    });
+
+    const saveButtons = document.querySelectorAll('.status-save-btn');
+    saveButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const select = this.previousElementSibling;
+            const orderId = select.dataset.orderId;
+            const newStatus = select.value;
+            const originalHtml = this.innerHTML;
+
+            // Hiển thị trạng thái loading
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border" role="status"></span>';
+
+            fetch(`/orders/update_status/${orderId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(response => response.json().then(data => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (ok && data.success) {
+                    // Cập nhật lại trạng thái gốc và thông báo thành công
+                    select.dataset.originalStatus = data.new_status;
+                    alert('Cập nhật trạng thái thành công!');
+                } else {
+                    // Ném lỗi để catch xử lý
+                    throw new Error(data.message || 'Lỗi không xác định từ server.');
+                }
+            })
+            .catch(error => {
+                // Trả lại giá trị cũ và báo lỗi
+                select.value = select.dataset.originalStatus;
+                alert('Lỗi khi cập nhật trạng thái: ' + error.message);
+            })
+            .finally(() => {
+                // Khôi phục lại nút bấm
+                this.innerHTML = originalHtml;
+                this.disabled = true; // Vô hiệu hóa lại sau khi xử lý xong
             });
         });
     });

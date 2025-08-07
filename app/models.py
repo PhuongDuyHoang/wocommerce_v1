@@ -41,9 +41,9 @@ class WooCommerceStore(db.Model):
     consumer_secret = db.Column(db.String(255), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('app_user.id'), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    last_checked = db.Column(db.DateTime, default=None, nullable=True)
+    # === SỬA LỖI: Thêm timezone=True để lưu múi giờ UTC ===
+    last_checked = db.Column(db.DateTime(timezone=True), default=None, nullable=True)
     note = db.Column(db.Text, nullable=True)
-    last_notified_order_timestamp = db.Column(db.DateTime(timezone=True), nullable=True)
     orders = db.relationship('WooCommerceOrder', backref='store', lazy='dynamic', cascade="all, delete-orphan")
     def __repr__(self): return f'<WooCommerceStore {self.name}>'
 
@@ -58,6 +58,7 @@ class WooCommerceOrder(db.Model):
     customer_name = db.Column(db.String(255), nullable=True)
     payment_method_title = db.Column(db.String(100), nullable=True)
     order_created_at = db.Column(db.DateTime, nullable=False, index=True)
+    order_modified_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
     shipping_total = db.Column(db.Float, nullable=True)
     customer_note = db.Column(db.Text, nullable=True)
     billing_phone = db.Column(db.String(100), nullable=True)
@@ -83,43 +84,25 @@ class OrderLineItem(db.Model):
     def __repr__(self): return f'<LineItem {self.product_name} for Order ID:{self.order_id}>'
     @property
     def variations_list(self):
-        if not self.variations:
-            return []
-        try:
-            return json.loads(self.variations)
-        except json.JSONDecodeError:
-            return []
+        if not self.variations: return []
+        try: return json.loads(self.variations)
+        except json.JSONDecodeError: return []
 
 class Setting(db.Model):
     __tablename__ = 'setting'
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.Text, nullable=True)
-
     @classmethod
     def get_value(cls, key, default=None):
-        """
-        Lấy giá trị của một cài đặt từ cơ sở dữ liệu.
-        Trả về `default` nếu không tìm thấy.
-        """
         setting = cls.query.get(key)
-        if setting:
-            return setting.value
-        return default
-
+        return setting.value if setting else default
     @classmethod
     def set_value(cls, key, value):
-        """
-        Lưu hoặc cập nhật giá trị của một cài đặt vào cơ sở dữ liệu
-        và commit thay đổi ngay lập tức.
-        """
         setting = cls.query.get(key)
-        if setting:
-            setting.value = str(value)
+        if setting: setting.value = str(value)
         else:
             setting = cls(key=key, value=str(value))
             db.session.add(setting)
-        
-        # <<< SỬA LỖI: THÊM DÒNG NÀY ĐỂ LƯU THAY ĐỔI VÀO DATABASE
         db.session.commit()
 
 class BackgroundTask(db.Model):

@@ -66,6 +66,7 @@ def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bo
         "customer_name": f"{order_data.get('billing', {}).get('first_name', '')} {order_data.get('billing', {}).get('last_name', '')}".strip(),
         "payment_method_title": order_data.get('payment_method_title', 'N/A'),
         "order_created_at": datetime.fromisoformat(order_data['date_created_gmt']).replace(tzinfo=timezone.utc),
+        "order_modified_at": datetime.fromisoformat(order_data['date_modified_gmt']).replace(tzinfo=timezone.utc),
         "customer_note": order_data.get('customer_note', ''),
         "billing_phone": order_data.get('billing', {}).get('phone', ''),
         "billing_email": order_data.get('billing', {}).get('email', ''),
@@ -76,22 +77,15 @@ def _extract_order_details(order_data: dict, wcapi: API, should_fetch_images: bo
     return {'order': order_level_data, 'line_items': line_items_data}
 
 def format_products_for_notification(line_items) -> str:
-    """
-    MODIFIED: Formats line items for a Telegram notification, ensuring special
-    characters in product names and variations are handled correctly.
-    """
     if not line_items: return "- Không có sản phẩm."
     lines = []
     for item in line_items:
-        # Escape the product name, as it's rendered as plain text in the message
         escaped_name = escape_markdown_v2(item.product_name)
         line = f"\\- {escaped_name} \\(SL: {item.quantity}\\)"
         
         variations = item.variations_list
         variations_str = ", ".join(variations)
         if variations_str:
-            # For text inside `code blocks`, we just need to avoid backticks.
-            # Other special Markdown characters are ignored by Telegram inside `...`.
             safe_variations_for_code = variations_str.replace('`', "'")
             line += f"\n  `{safe_variations_for_code}`"
         lines.append(line)
@@ -176,64 +170,89 @@ def sync_history_for_store(app, store_id: int, job_id: str):
             db.session.rollback()
 
 def check_single_store_job(app, store_id):
-    """Tác vụ chạy nền cho MỘT cửa hàng duy nhất."""
     with app.app_context():
         store = db.session.get(WooCommerceStore, store_id)
         if not store or not store.is_active:
             return
 
-        print(f"--- Bắt đầu kiểm tra đơn hàng cho: '{store.name}' ---")
+        print(f"--- Bắt đầu đồng bộ đơn hàng cho: '{store.name}' ---")
         
-        latest_order_time = None
         new_orders_to_notify = []
+        updated_order_count = 0
+        latest_modified_time = None
+
         try:
             setting = db.session.get(Setting, 'FETCH_PRODUCT_IMAGES')
             should_fetch_images = setting.value.lower() == 'true' if setting else False
             
             wcapi = API(url=store.store_url, consumer_key=store.consumer_key, consumer_secret=store.consumer_secret, version="wc/v3", timeout=20)
-            params = {'orderby': 'date', 'order': 'asc'}
-            if store.last_notified_order_timestamp:
-                params['after'] = (store.last_notified_order_timestamp + timedelta(seconds=1)).isoformat()
             
-            new_orders_response = wcapi.get("orders", params=params).json()
+            params = {'orderby': 'modified', 'order': 'asc', 'per_page': 100}
+            if store.last_checked:
+                params['modified_after'] = store.last_checked.isoformat()
+            else:
+                # === SỬA LỖI 1: Mở rộng cửa sổ thời gian ban đầu thành 7 ngày ===
+                params['modified_after'] = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
             
-            if not isinstance(new_orders_response, list):
-                print(f"Lỗi API cho '{store.name}': {new_orders_response.get('message', 'Không rõ')}")
+            orders_response = wcapi.get("orders", params=params).json()
+            
+            if not isinstance(orders_response, list):
+                print(f"Lỗi API cho '{store.name}': {orders_response.get('message', 'Không rõ')}")
                 return
 
-            if not new_orders_response:
-                print(f"Không có đơn hàng mới cho '{store.name}'.")
+            if not orders_response:
+                print(f"Không có đơn hàng mới hoặc cập nhật cho '{store.name}'.")
             else:
-                for order_data in new_orders_response:
+                for order_data in orders_response:
                     try:
-                        exists = db.session.query(WooCommerceOrder.id).filter_by(wc_order_id=order_data['id'], store_id=store.id).first() is not None
-                        if not exists:
-                            full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
+                        full_details = _extract_order_details(order_data, wcapi, should_fetch_images)
+                        
+                        existing_order = WooCommerceOrder.query.filter_by(
+                            wc_order_id=order_data['id'], store_id=store.id
+                        ).first()
+
+                        if existing_order:
+                            print(f"Đang cập nhật đơn hàng WC_ID {order_data['id']}...")
+                            for key, value in full_details['order'].items():
+                                setattr(existing_order, key, value)
+                            
+                            OrderLineItem.query.filter_by(order_id=existing_order.id).delete()
+                            for item_data in full_details['line_items']:
+                                item_data.pop('product_id', None)
+                                new_item = OrderLineItem(order=existing_order, **item_data)
+                                db.session.add(new_item)
+                            
+                            updated_order_count += 1
+                        else:
+                            print(f"Đang thêm đơn hàng mới WC_ID {order_data['id']}...")
                             new_order = WooCommerceOrder(store_id=store.id, **full_details['order'])
                             db.session.add(new_order)
+                            
                             for item_data in full_details['line_items']:
-                                item_data.pop('product_id', None) 
+                                item_data.pop('product_id', None)
                                 new_item = OrderLineItem(order=new_order, **item_data)
                                 db.session.add(new_item)
                             
-                            db.session.commit()
-                            latest_order_time = new_order.order_created_at
                             new_orders_to_notify.append(new_order)
+
+                        db.session.commit()
+                        
+                        latest_modified_time = full_details['order']['order_modified_at']
 
                     except Exception as single_order_error:
                         print(f"LỖI khi xử lý đơn hàng WC_ID {order_data.get('id')}: {single_order_error}")
                         db.session.rollback()
                         continue
 
-            if latest_order_time:
-                store.last_notified_order_timestamp = latest_order_time
-            
-            store.last_checked = datetime.now(timezone.utc)
-            db.session.commit()
-            print(f"--- Hoàn tất kiểm tra cho '{store.name}', đã xử lý {len(new_orders_response)} đơn hàng. ---")
+            # === SỬA LỖI 2: Chỉ cập nhật last_checked khi có đơn hàng được xử lý ===
+            if latest_modified_time:
+                store.last_checked = latest_modified_time
+                db.session.commit()
+
+            print(f"--- Hoàn tất đồng bộ cho '{store.name}'. Đã thêm {len(new_orders_to_notify)} đơn mới, cập nhật {updated_order_count} đơn. ---")
 
         except Exception as e:
-            print(f"LỖI nghiêm trọng khi kiểm tra '{store.name}': {e}")
+            print(f"LỖI nghiêm trọng khi đồng bộ '{store.name}': {e}")
             db.session.rollback()
             return
 

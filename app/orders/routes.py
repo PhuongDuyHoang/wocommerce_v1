@@ -2,6 +2,9 @@
 
 from flask import render_template, request, jsonify
 from flask_login import login_required, current_user
+# THÊM IMPORT: Thư viện WooCommerce API
+from woocommerce import API
+
 from . import orders_bp
 from app.models import WooCommerceOrder, WooCommerceStore, Setting, OrderLineItem, AppUser
 from app.decorators import can_view_orders_required
@@ -59,12 +62,9 @@ def manage_all_orders():
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
         query = query.filter(WooCommerceOrder.order_created_at <= end_date)
 
-    # === DÒNG CODE ĐÃ ĐƯỢC SỬA ===
-    # Thay vì paginate(page, per_page, ...), chúng ta dùng paginate(page=page, per_page=per_page, ...)
     pagination = query.order_by(WooCommerceOrder.order_created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
-    # === KẾT THÚC SỬA LỖI ===
 
     orders_with_owner = []
     for row in pagination.items:
@@ -98,17 +98,57 @@ def manage_all_orders():
 @orders_bp.route('/update_note/<int:order_id>', methods=['POST'])
 @login_required
 def update_note(order_id):
-    """API endpoint để cập nhật ghi chú cho một đơn hàng."""
+    order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
+    data = request.get_json()
+    if 'note' in data:
+        order.note = data['note']
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Ghi chú đã được cập nhật.'})
+    return jsonify({'success': False, 'message': 'Dữ liệu không hợp lệ.'}), 400
+
+# === ROUTE MỚI ĐỂ CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG ===
+@orders_bp.route('/update_status/<int:order_id>', methods=['POST'])
+@login_required
+def update_status(order_id):
+    """
+    API endpoint để cập nhật trạng thái của một đơn hàng trên WooCommerce
+    và đồng bộ lại vào database cục bộ.
+    """
+    order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
+    data = request.get_json()
+    new_status = data.get('status')
+
+    if not new_status:
+        return jsonify({'success': False, 'message': 'Trạng thái mới không được cung cấp.'}), 400
+
+    store = order.store
+    if not store:
+        return jsonify({'success': False, 'message': 'Không tìm thấy cửa hàng liên kết.'}), 404
+
     try:
-        order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
-        
-        data = request.get_json()
-        if 'note' in data:
-            order.note = data['note']
+        # Khởi tạo kết nối API tới WooCommerce
+        wcapi = API(
+            url=store.store_url,
+            consumer_key=store.consumer_key,
+            consumer_secret=store.consumer_secret,
+            version="wc/v3",
+            timeout=20
+        )
+
+        # Dữ liệu gửi đi để cập nhật
+        payload = {"status": new_status}
+        response = wcapi.put(f"orders/{order.wc_order_id}", payload)
+
+        if response.status_code == 200:
+            # Nếu cập nhật thành công trên WooCommerce, cập nhật lại DB cục bộ
+            order.status = new_status
             db.session.commit()
-            return jsonify({'success': True, 'message': 'Ghi chú đã được cập nhật.'})
-        return jsonify({'success': False, 'message': 'Dữ liệu không hợp lệ.'}), 400
+            return jsonify({'success': True, 'message': 'Cập nhật trạng thái thành công!', 'new_status': new_status})
+        else:
+            # Nếu có lỗi từ WooCommerce, trả về lỗi đó
+            error_message = response.json().get('message', 'Lỗi không xác định từ WooCommerce.')
+            return jsonify({'success': False, 'message': error_message}), response.status_code
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-
+        return jsonify({'success': False, 'message': f'Lỗi hệ thống: {str(e)}'}), 500
