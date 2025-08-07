@@ -136,7 +136,6 @@
         border-width: .2em;
     }
 
-    /* === CSS MỚI CHO MÀU SẮC TRẠNG THÁI === */
     .status-select.status-processing { background-color: #84af77; color: white; }
     .status-select.status-completed { background-color: #77a4b4; color: white; }
     .status-select.status-on-hold { background-color: #f8b44e; color: white; }
@@ -158,6 +157,17 @@
             <div class="row g-2 align-items-end">
                 <div class="col-md"><label for="search_query" class="form-label">Tìm kiếm</label><input type="text" class="form-control form-control-sm" id="search_query" name="search_query" placeholder="Mã đơn hàng, tên khách..." value="{{ search_query or '' }}"></div>
                 <div class="col-md-2"><label for="store_id_filter" class="form-label">Cửa hàng</label><select class="form-select form-select-sm" id="store_id_filter" name="store_id"><option value="">Tất cả</option>{% for store in stores_for_filter %}<option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>{% endfor %}</select></div>
+                
+                <div class="col-md-2">
+                    <label for="status_filter" class="form-label">Trạng thái</label>
+                    <select class="form-select form-select-sm" id="status_filter" name="status">
+                        <option value="">Tất cả</option>
+                        {% for status_val, status_text in statuses %}
+                            <option value="{{ status_val }}" {% if status_val == selected_status %}selected{% endif %}>{{ status_text }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
                 <div class="col-md-2"><label for="start_date" class="form-label">Từ ngày</label><input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date or '' }}"></div>
                 <div class="col-md-2"><label for="end_date" class="form-label">Đến ngày</label><input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date or '' }}"></div>
                 <div class="col-md-auto"><div class="d-flex gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('orders.manage_all_orders') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div>
@@ -211,13 +221,6 @@
                                 ${{ "{:,.2f}".format(order[column.key] or 0) }}
                             
                             {% elif column.key == 'status' %}
-                                {% set statuses = [
-                                    ('pending', 'Chờ thanh toán'), ('processing', 'Đang xử lý'),
-                                    ('on-hold', 'Tạm giữ'), ('completed', 'Hoàn thành'),
-                                    ('cancelled', 'Đã hủy'), ('refunded', 'Đã hoàn tiền'),
-                                    ('failed', 'Thất bại')
-                                ] %}
-                                {# === THÊM CLASS MÀU SẮC VÀO SELECT === #}
                                 <div class="status-update-form">
                                     <select class="form-select form-select-sm status-select status-{{ order.status }}" data-order-id="{{ order.id }}" data-original-status="{{ order.status }}">
                                         {% for status_val, status_text in statuses %}
@@ -279,12 +282,12 @@
 
 {% if pagination and pagination.pages > 1 %}
 <nav aria-label="Page navigation"><ul class="pagination justify-content-center mt-4">
-    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.prev_num, search_query=search_query, store_id=selected_store_id, start_date=start_date, end_date=end_date) }}">&laquo;</a></li>
+    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.prev_num, search_query=search_query, store_id=selected_store_id, status=selected_status, start_date=start_date, end_date=end_date) }}">&laquo;</a></li>
     {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=3) %}
-      {% if page_num %}<li class="page-item {% if page_num == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=page_num, search_query=search_query, store_id=selected_store_id, start_date=start_date, end_date=end_date) }}">{{ page_num }}</a></li>
+      {% if page_num %}<li class="page-item {% if page_num == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=page_num, search_query=search_query, store_id=selected_store_id, status=selected_status, start_date=start_date, end_date=end_date) }}">{{ page_num }}</a></li>
       {% else %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}
     {% endfor %}
-    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.next_num, search_query=search_query, store_id=selected_store_id, start_date=start_date, end_date=end_date) }}">&raquo;</a></li>
+    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.next_num, search_query=search_query, store_id=selected_store_id, status=selected_status, start_date=start_date, end_date=end_date) }}">&raquo;</a></li>
 </ul></nav>
 {% endif %}
 
@@ -358,8 +361,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const newStatus = this.value;
             const saveBtn = this.nextElementSibling;
             saveBtn.disabled = (originalStatus === newStatus);
-
-            // === JAVASCRIPT MỚI: Cập nhật màu sắc khi thay đổi lựa chọn ===
             this.classList.remove(...allStatusClasses);
             this.classList.add(`status-${newStatus}`);
         });
@@ -393,7 +394,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 const originalStatus = select.dataset.originalStatus;
                 select.value = originalStatus;
-                // Cập nhật lại màu sắc về trạng thái cũ
                 select.classList.remove(...allStatusClasses);
                 select.classList.add(`status-${originalStatus}`);
                 alert('Lỗi khi cập nhật trạng thái: ' + error.message);

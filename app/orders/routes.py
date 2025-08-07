@@ -2,7 +2,6 @@
 
 from flask import render_template, request, jsonify
 from flask_login import login_required, current_user
-# THÊM IMPORT: Thư viện WooCommerce API
 from woocommerce import API
 
 from . import orders_bp
@@ -23,6 +22,8 @@ def manage_all_orders():
     per_page = 20
     search_query = request.args.get('search_query', '').strip()
     selected_store_id = request.args.get('store_id', type=int)
+    # === THÊM MỚI: Lấy tham số lọc trạng thái từ URL ===
+    selected_status = request.args.get('status', '')
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
 
@@ -55,6 +56,10 @@ def manage_all_orders():
     if selected_store_id:
         query = query.filter(WooCommerceOrder.store_id == selected_store_id)
 
+    # === THÊM MỚI: Áp dụng bộ lọc trạng thái vào câu truy vấn ===
+    if selected_status:
+        query = query.filter(WooCommerceOrder.status == selected_status)
+
     if start_date_str:
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
         query = query.filter(WooCommerceOrder.order_created_at >= start_date)
@@ -82,6 +87,14 @@ def manage_all_orders():
     except (json.JSONDecodeError, TypeError):
         columns_config = []
     
+    # === THÊM MỚI: Định nghĩa danh sách trạng thái để gửi ra template ===
+    statuses = [
+        ('pending', 'Chờ thanh toán'), ('processing', 'Đang xử lý'),
+        ('on-hold', 'Tạm giữ'), ('completed', 'Hoàn thành'),
+        ('cancelled', 'Đã hủy'), ('refunded', 'Đã hoàn tiền'),
+        ('failed', 'Thất bại')
+    ]
+    
     return render_template(
         'orders/manage_orders.html',
         title='Quản lý Đơn hàng',
@@ -92,7 +105,10 @@ def manage_all_orders():
         start_date=start_date_str,
         end_date=end_date_str,
         stores_for_filter=stores_for_filter,
-        columns_config=columns_config
+        columns_config=columns_config,
+        # === THÊM MỚI: Truyền các biến mới ra template ===
+        statuses=statuses,
+        selected_status=selected_status
     )
 
 @orders_bp.route('/update_note/<int:order_id>', methods=['POST'])
@@ -106,14 +122,9 @@ def update_note(order_id):
         return jsonify({'success': True, 'message': 'Ghi chú đã được cập nhật.'})
     return jsonify({'success': False, 'message': 'Dữ liệu không hợp lệ.'}), 400
 
-# === ROUTE MỚI ĐỂ CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG ===
 @orders_bp.route('/update_status/<int:order_id>', methods=['POST'])
 @login_required
 def update_status(order_id):
-    """
-    API endpoint để cập nhật trạng thái của một đơn hàng trên WooCommerce
-    và đồng bộ lại vào database cục bộ.
-    """
     order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
     data = request.get_json()
     new_status = data.get('status')
@@ -126,7 +137,6 @@ def update_status(order_id):
         return jsonify({'success': False, 'message': 'Không tìm thấy cửa hàng liên kết.'}), 404
 
     try:
-        # Khởi tạo kết nối API tới WooCommerce
         wcapi = API(
             url=store.store_url,
             consumer_key=store.consumer_key,
@@ -134,18 +144,14 @@ def update_status(order_id):
             version="wc/v3",
             timeout=20
         )
-
-        # Dữ liệu gửi đi để cập nhật
         payload = {"status": new_status}
         response = wcapi.put(f"orders/{order.wc_order_id}", payload)
 
         if response.status_code == 200:
-            # Nếu cập nhật thành công trên WooCommerce, cập nhật lại DB cục bộ
             order.status = new_status
             db.session.commit()
             return jsonify({'success': True, 'message': 'Cập nhật trạng thái thành công!', 'new_status': new_status})
         else:
-            # Nếu có lỗi từ WooCommerce, trả về lỗi đó
             error_message = response.json().get('message', 'Lỗi không xác định từ WooCommerce.')
             return jsonify({'success': False, 'message': error_message}), response.status_code
 
