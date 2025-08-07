@@ -120,21 +120,30 @@
     .save-status.saved { background-color: #198754; }
     .save-status.error { background-color: #dc3545; }
 
-    /* === CSS MỚI CHO CẬP NHẬT TRẠNG THÁI === */
     .status-update-form {
         display: flex;
         align-items: center;
         gap: 8px;
-        min-width: 200px; /* Đảm bảo đủ không gian */
+        min-width: 200px;
     }
     .status-select {
-        flex-grow: 1; /* Cho select chiếm phần lớn không gian */
+        flex-grow: 1;
+        font-weight: 500;
     }
     .status-save-btn .spinner-border {
         width: 1rem;
         height: 1rem;
         border-width: .2em;
     }
+
+    /* === CSS MỚI CHO MÀU SẮC TRẠNG THÁI === */
+    .status-select.status-processing { background-color: #84af77; color: white; }
+    .status-select.status-completed { background-color: #77a4b4; color: white; }
+    .status-select.status-on-hold { background-color: #f8b44e; color: white; }
+    .status-select.status-failed { background-color: #d65d5d; color: white; }
+    .status-select.status-cancelled { background-color: #a4a9ac; color: white; }
+    .status-select.status-refunded { background-color: #555; color: white; }
+    .status-select.status-pending { background-color: #e9ecef; color: #333; }
 </style>
 {% endblock %}
 
@@ -201,7 +210,6 @@
                             {% elif column.type == 'currency' %}
                                 ${{ "{:,.2f}".format(order[column.key] or 0) }}
                             
-                            {# === THAY ĐỔI CÁCH HIỂN THỊ CỘT TRẠNG THÁI === #}
                             {% elif column.key == 'status' %}
                                 {% set statuses = [
                                     ('pending', 'Chờ thanh toán'), ('processing', 'Đang xử lý'),
@@ -209,8 +217,9 @@
                                     ('cancelled', 'Đã hủy'), ('refunded', 'Đã hoàn tiền'),
                                     ('failed', 'Thất bại')
                                 ] %}
+                                {# === THÊM CLASS MÀU SẮC VÀO SELECT === #}
                                 <div class="status-update-form">
-                                    <select class="form-select form-select-sm status-select" data-order-id="{{ order.id }}" data-original-status="{{ order.status }}">
+                                    <select class="form-select form-select-sm status-select status-{{ order.status }}" data-order-id="{{ order.id }}" data-original-status="{{ order.status }}">
                                         {% for status_val, status_text in statuses %}
                                             <option value="{{ status_val }}" {% if order.status == status_val %}selected{% endif %}>
                                                 {{ status_text }}
@@ -221,8 +230,7 @@
                                         <i class="bi bi-save"></i>
                                     </button>
                                 </div>
-                            {# === KẾT THÚC THAY ĐỔI === #}
-
+                            
                             {% elif column.key == 'products' %}
                                 <ul class="product-list">
                                 {% for item in order.line_items %}
@@ -294,7 +302,6 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // ... (code cho image modal và ghi chú giữ nguyên)
     const imageModal = document.getElementById('imageModal');
     if (imageModal) {
         imageModal.addEventListener('show.bs.modal', function (event) {
@@ -342,14 +349,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // === JAVASCRIPT MỚI ĐỂ CẬP NHẬT TRẠNG THÁI ===
     const statusSelects = document.querySelectorAll('.status-select');
+    const allStatusClasses = ['status-processing', 'status-completed', 'status-on-hold', 'status-failed', 'status-cancelled', 'status-refunded', 'status-pending'];
+
     statusSelects.forEach(select => {
         select.addEventListener('change', function() {
             const originalStatus = this.dataset.originalStatus;
             const newStatus = this.value;
             const saveBtn = this.nextElementSibling;
             saveBtn.disabled = (originalStatus === newStatus);
+
+            // === JAVASCRIPT MỚI: Cập nhật màu sắc khi thay đổi lựa chọn ===
+            this.classList.remove(...allStatusClasses);
+            this.classList.add(`status-${newStatus}`);
         });
     });
 
@@ -361,7 +373,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const newStatus = select.value;
             const originalHtml = this.innerHTML;
 
-            // Hiển thị trạng thái loading
             this.disabled = true;
             this.innerHTML = '<span class="spinner-border" role="status"></span>';
 
@@ -373,23 +384,23 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json().then(data => ({ ok: response.ok, data })))
             .then(({ ok, data }) => {
                 if (ok && data.success) {
-                    // Cập nhật lại trạng thái gốc và thông báo thành công
                     select.dataset.originalStatus = data.new_status;
                     alert('Cập nhật trạng thái thành công!');
                 } else {
-                    // Ném lỗi để catch xử lý
                     throw new Error(data.message || 'Lỗi không xác định từ server.');
                 }
             })
             .catch(error => {
-                // Trả lại giá trị cũ và báo lỗi
-                select.value = select.dataset.originalStatus;
+                const originalStatus = select.dataset.originalStatus;
+                select.value = originalStatus;
+                // Cập nhật lại màu sắc về trạng thái cũ
+                select.classList.remove(...allStatusClasses);
+                select.classList.add(`status-${originalStatus}`);
                 alert('Lỗi khi cập nhật trạng thái: ' + error.message);
             })
             .finally(() => {
-                // Khôi phục lại nút bấm
                 this.innerHTML = originalHtml;
-                this.disabled = true; // Vô hiệu hóa lại sau khi xử lý xong
+                this.disabled = true;
             });
         });
     });
