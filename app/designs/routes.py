@@ -18,7 +18,8 @@ def manage():
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('search_query', '', type=str)
     
-    base_query = Design.query
+    # Sửa lỗi: Chỉ query design của user hiện tại
+    base_query = Design.query.filter_by(user_id=current_user.id)
     
     if search_query:
         search_term = f"%{search_query}%"
@@ -63,7 +64,8 @@ def get_details(design_id):
     """
     Lấy thông tin chi tiết của một design để điền vào form chỉnh sửa.
     """
-    design = db.session.get(Design, design_id)
+    # Sửa lỗi: Chỉ cho phép lấy design của user hiện tại
+    design = Design.query.filter_by(id=design_id, user_id=current_user.id).first()
     if not design:
         return jsonify({'success': False, 'message': 'Không tìm thấy design.'}), 404
     
@@ -79,7 +81,8 @@ def edit(design_id):
     """
     Xử lý việc cập nhật một design đã có.
     """
-    design = db.session.get(Design, design_id)
+    # Sửa lỗi: Chỉ cho phép sửa design của user hiện tại
+    design = Design.query.filter_by(id=design_id, user_id=current_user.id).first()
     if not design:
         return jsonify({'success': False, 'message': 'Không tìm thấy design.'}), 404
 
@@ -98,7 +101,8 @@ def delete(design_id):
     """
     Xóa một design.
     """
-    design = db.session.get(Design, design_id)
+    # Sửa lỗi: Chỉ cho phép xóa design của user hiện tại
+    design = Design.query.filter_by(id=design_id, user_id=current_user.id).first()
     if not design:
         return jsonify({'success': False, 'message': 'Không tìm thấy design.'}), 404
 
@@ -116,20 +120,25 @@ def delete_selected():
     if not ids_to_delete:
         return jsonify({'success': False, 'message': 'Không có design nào được chọn.'}), 400
 
-    db.session.query(Design).filter(Design.id.in_(ids_to_delete)).delete(synchronize_session=False)
+    # Sửa lỗi: Chỉ cho phép xóa design của user hiện tại
+    Design.query.filter(
+        Design.id.in_(ids_to_delete),
+        Design.user_id==current_user.id
+    ).delete(synchronize_session=False)
     db.session.commit()
     
     return jsonify({'success': True, 'message': f'Đã xóa {len(ids_to_delete)} design.'})
 
-# === START: THÊM ROUTE API ĐỂ LẤY TẤT CẢ DESIGN ===
 @designs_bp.route('/api/all', methods=['GET'])
 @login_required
 def api_get_all_designs():
     """
     API endpoint để trả về danh sách tất cả các design cho Javascript.
     """
-    # Trong tương lai có thể thêm logic quyền hạn ở đây
-    all_designs = Design.query.order_by(Design.name).all()
+    # === START: THÊM BỘ LỌC BẢO MẬT QUAN TRỌNG ===
+    # Chỉ lấy các design thuộc về người dùng đang đăng nhập
+    all_designs = Design.query.filter_by(user_id=current_user.id).order_by(Design.name).all()
+    # === END: THÊM BỘ LỌC BẢO MẬT QUAN TRỌNG ===
     
     designs_list = [
         {'id': d.id, 'name': d.name, 'image_url': d.image_url} 
@@ -137,4 +146,3 @@ def api_get_all_designs():
     ]
     
     return jsonify({'success': True, 'designs': designs_list})
-# === END: THÊM ROUTE API ĐỂ LẤY TẤT CẢ DESIGN ===

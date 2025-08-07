@@ -22,7 +22,7 @@
                     
                     <div class="mb-3">
                         <h6 class="mb-0">
-                            <img src="https://mangoteeprints.com/wp-content/uploads/2024/05/cropped-MANGOTEE-LOGO-web-2-e1715845019777-300x121.png" alt="MangoTee Logo" style="height: 24px; margin-right: 8px;">
+                            <img src="https://stripeptechgo.sfo3.cdn.digitaloceanspaces.com/LogoFF/logo%20mango.png" alt="MangoTee Logo" style="height: 24px; margin-right: 8px;">
                             MangoTee
                         </h6>
                         <div class="form-text my-2">Nhập API Key được cung cấp bởi MangoTee.</div>

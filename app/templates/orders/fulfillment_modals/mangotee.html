@@ -1,53 +1,86 @@
+<style>
+    .original-item {
+        font-size: 0.9em;
+    }
+    .original-item-img {
+        width: 50px;
+        height: 50px;
+        object-fit: cover;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .original-item-variations {
+        font-size: 0.85em;
+        color: #6c757d;
+        font-style: italic;
+    }
+    .fulfill-item {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: .375rem;
+    }
+    .item-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .variant-select-group .form-select:disabled {
+        background-color: #e9ecef;
+        cursor: not-allowed;
+    }
+    .selected-product-info {
+        font-weight: 500;
+        color: #0d6efd;
+    }
+</style>
+
 <div class="modal-header">
-    <h5 class="modal-title" id="fulfillModalLabel">Fulfill Đơn hàng #<span id="fulfill-wc-order-id"></span> qua Mango Tee</h5>
+    <h5 class="modal-title" id="fulfillModalLabel">Fulfill Đơn hàng qua MangoTee</h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 </div>
 
 <div class="modal-body">
-    <form id="mangoteeFulfillForm">
-        <div class="row">
-            <div class="col-md-5">
-                <h6><i class="bi bi-truck me-2"></i>Thông tin giao hàng</h6>
-                <div class="mb-2">
-                    <label class="form-label small">Tên khách hàng</label>
-                    <input type="text" class="form-control form-control-sm" name="shipping_name" required>
+    <div id="mangotee-error-alert" class="alert alert-danger d-none"></div>
+    <div class="row g-4">
+        <div class="col-md-8">
+            <form id="mangoteeFulfillForm" onsubmit="return false;">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Mã đơn hàng Fulfill (Reference ID)</label>
+                    <input type="text" class="form-control form-control-sm" name="reference_id" readonly>
                 </div>
-                <div class="mb-2">
-                    <label class="form-label small">Địa chỉ</label>
-                    <input type="text" class="form-control form-control-sm" name="shipping_address1" required>
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small">Số điện thoại</label>
-                    <input type="text" class="form-control form-control-sm" name="shipping_phone" required>
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small">Email</label>
-                    <input type="email" class="form-control form-control-sm" name="shipping_email" required>
-                </div>
-                <div class="row g-2">
-                    <div class="col-sm-6">
-                        <label class="form-label small">Thành phố</label>
-                        <input type="text" class="form-control form-control-sm" name="shipping_city" required>
-                    </div>
-                    <div class="col-sm-6">
-                        <label class="form-label small">Mã ZIP</label>
-                        <input type="text" class="form-control form-control-sm" name="shipping_zip" required>
-                    </div>
-                </div>
-            </div>
 
-            <div class="col-md-7">
-                <h6><i class="bi bi-box-seam me-2"></i>Sản phẩm Fulfill</h6>
-                <div id="mangotee-line-items-container" class="border rounded p-2" style="max-height: 400px; overflow-y: auto;">
+                <h6><i class="bi bi-truck me-2"></i>Thông tin giao hàng (Shipping Info)</h6>
+                <div class="row g-2">
+                    <div class="col-sm-6"><input type="text" class="form-control form-control-sm" name="shipping_first_name" placeholder="First Name *" required></div>
+                    <div class="col-sm-6"><input type="text" class="form-control form-control-sm" name="shipping_last_name" placeholder="Last Name"></div>
+                    <div class="col-sm-6"><input type="text" class="form-control form-control-sm" name="shipping_address_1" placeholder="Address Line 1 *" required></div>
+                    <div class="col-sm-6"><input type="text" class="form-control form-control-sm" name="shipping_address_2" placeholder="Address Line 2"></div>
+                    <div class="col-sm-6"><input type="text" class="form-control form-control-sm" name="shipping_city" placeholder="City *" required></div>
+                    <div class="col-sm-6"><input type="text" class="form-control form-control-sm" name="shipping_state" placeholder="State or Region *" required></div>
+                    <div class="col-sm-4"><input type="text" class="form-control form-control-sm" name="shipping_postcode" placeholder="Zip *" required></div>
+                    <div class="col-sm-4"><input type="text" class="form-control form-control-sm" name="shipping_country" placeholder="Country *" required></div>
+                    <div class="col-sm-4"><input type="text" class="form-control form-control-sm" name="shipping_phone" placeholder="Phone"></div>
+                    <div class="col-12"><input type="email" class="form-control form-control-sm" name="shipping_email" placeholder="Email"></div>
+                </div>
+
+                <h6 class="mt-4"><i class="bi bi-box-seam me-2"></i>Sản phẩm Fulfill</h6>
+                <div id="mangotee-line-items-container" class="vstack gap-3">
                     </div>
-                <div class="d-grid mt-2">
+                <div class="d-grid mt-3">
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="mangotee-add-item-btn">
-                        <i class="bi bi-plus-lg"></i> Thêm sản phẩm
+                        <i class="bi bi-plus-lg"></i> Thêm sản phẩm từ Catalog
                     </button>
                 </div>
+            </form>
+        </div>
+
+        <div class="col-md-4">
+            <div class="bg-light p-3 rounded h-100">
+                <h6>Đơn hàng gốc</h6>
+                <div id="original-items-container" class="vstack gap-2" style="max-height: 500px; overflow-y: auto;">
+                     </div>
             </div>
         </div>
-    </form>
+    </div>
 </div>
 
 <div class="modal-footer">
@@ -57,198 +90,383 @@
     </button>
 </div>
 
-<template id="mangotee-item-template">
-    <div class="p-2 border-bottom mangotee-item">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <p class="mb-0 small text-muted">Sản phẩm từ đơn hàng gốc</p>
-            <button type="button" class="btn-close btn-sm remove-item-btn" title="Xóa sản phẩm này"></button>
+
+<div class="modal fade" id="mangoteeProductCatalogModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Chọn sản phẩm từ Catalog MangoTee</h5>
+                <input type="search" class="form-control form-control-sm ms-3" id="mangotee-product-search" placeholder="Tìm SKU hoặc tên sản phẩm...">
+            </div>
+            <div class="modal-body">
+                <div id="mangotee-product-list" class="list-group"></div>
+            </div>
+             <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-target="#fulfillModal" data-bs-toggle="modal">Quay lại</button>
+            </div>
         </div>
-        <div class="row g-2">
-            <div class="col-12">
-                <input type="text" class="form-control form-control-sm" name="item_sku" placeholder="SKU sản phẩm của MangoTee" required>
+    </div>
+</div>
+
+<template id="original-item-template">
+    <div class="d-flex align-items-start gap-2 p-2 border rounded bg-white original-item">
+        <img src="https://via.placeholder.com/50" class="original-item-img">
+        <div>
+            <strong class="d-block"></strong>
+            <span></span>
+            <div class="original-item-variations"></div>
+        </div>
+    </div>
+</template>
+
+<template id="mangotee-item-template">
+    <div class="p-2 fulfill-item">
+        <input type="hidden" name="base_sku" value="">
+        <input type="hidden" name="variant_sku" value="">
+        
+        <div class="item-header p-2 d-flex justify-content-between align-items-center">
+            <div class="w-100">
+                 <button type="button" class="btn btn-sm btn-primary w-100 select-product-btn">Chọn sản phẩm</button>
+                 <div class="selected-product-info text-center mt-1 d-none"></div>
             </div>
-            <div class="col-6">
-                <select class="form-select form-select-sm" name="front_design_id">
-                    <option value="">-- Chọn Design mặt trước --</option>
+            <button type="button" class="btn-close btn-sm ms-2 remove-item-btn" title="Xóa sản phẩm này"></button>
+        </div>
+        
+        <div class="p-2">
+            <div class="row g-2 variant-select-group">
+                <div class="col-sm-6">
+                    <select class="form-select form-select-sm color-select" name="color" disabled><option>Màu sắc</option></select>
+                </div>
+                <div class="col-sm-6">
+                    <select class="form-select form-select-sm size-select" name="size" disabled><option>Kích thước</option></select>
+                </div>
+            </div>
+            <div class="row g-2 mt-1">
+                <div class="col-sm-6">
+                    <select class="form-select form-select-sm" name="front_design_id" disabled>
+                        <option value="">-- Design mặt trước --</option>
                     </select>
-            </div>
-            <div class="col-6">
-                 <select class="form-select form-select-sm" name="back_design_id">
-                    <option value="">-- Chọn Design mặt sau --</option>
+                </div>
+                <div class="col-sm-6">
+                     <select class="form-select form-select-sm" name="back_design_id" disabled>
+                        <option value="">-- Design mặt sau --</option>
                     </select>
+                </div>
             </div>
-            <div class="col-4">
-                <input type="number" class="form-control form-control-sm" name="item_quantity" value="1" min="1" placeholder="SL">
+             <div class="mt-2">
+                <input type="number" class="form-control form-control-sm" name="item_quantity" value="1" min="1" placeholder="Số lượng">
             </div>
         </div>
     </div>
 </template>
 
+<template id="mangotee-product-catalog-item-template">
+     <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-2 select-product-catalog-btn">
+        <img src="" alt="product-img" width="48" height="48" class="rounded-circle flex-shrink-0">
+        <div class="d-flex gap-2 w-100 justify-content-between">
+            <div>
+                <h6 class="mb-0 product-name"></h6>
+                <p class="mb-0 opacity-75 product-sku"></p>
+            </div>
+        </div>
+    </a>
+</template>
+
+
 <script>
-// Logic cho popup này được gói gọn trong một hàm để tránh xung đột
-(function() {
-    let orderData = null;
-    let allDesigns = []; // Biến lưu trữ toàn bộ design
+// Hàm khởi tạo sẽ được gọi bởi manage_orders.html
+window.initializeFulfillmentForm = function(detailsData, designsData, productsData) {
+    // === KHAI BÁO BIẾN & DOM ELEMENTS ===
+    let activeFulfillmentItem = null; 
 
+    const mainModalEl = document.getElementById('fulfillModal');
     const form = document.getElementById('mangoteeFulfillForm');
-    const itemsContainer = document.getElementById('mangotee-line-items-container');
-    const itemTemplate = document.getElementById('mangotee-item-template');
+    const fulfillItemsContainer = document.getElementById('mangotee-line-items-container');
+    const originalItemsContainer = document.getElementById('original-items-container');
     const submitBtn = document.getElementById('submit-mangotee-fulfillment-btn');
+    const errorAlert = document.getElementById('mangotee-error-alert');
+
+    const catalogModalEl = document.getElementById('mangoteeProductCatalogModal');
+    const catalogModal = new bootstrap.Modal(catalogModalEl);
+    const productListContainer = document.getElementById('mangotee-product-list');
+    const searchInput = document.getElementById('mangotee-product-search');
+
+    const originalItemTemplate = document.getElementById('original-item-template');
+    const fulfillItemTemplate = document.getElementById('mangotee-item-template');
+    const catalogItemTemplate = document.getElementById('mangotee-product-catalog-item-template');
     
-    // Hàm render một dòng sản phẩm
-    function renderItem(item = {}) {
-        const clone = itemTemplate.content.cloneNode(true);
-        const itemDiv = clone.querySelector('.mangotee-item');
-        
-        // Điền các giá trị có sẵn
-        itemDiv.querySelector('[name="item_sku"]').value = item.sku || '';
-        itemDiv.querySelector('[name="item_quantity"]').value = item.quantity || 1;
-        
-        // Đổ danh sách design vào 2 ô select
-        const frontSelect = itemDiv.querySelector('[name="front_design_id"]');
-        const backSelect = itemDiv.querySelector('[name="back_design_id"]');
-        allDesigns.forEach(design => {
-            frontSelect.innerHTML += `<option value="${design.id}" data-url="${design.image_url}">${design.name}</option>`;
-            backSelect.innerHTML += `<option value="${design.id}" data-url="${design.image_url}">${design.name}</option>`;
-        });
-
-        // Tự động chọn design nếu SKU của sản phẩm khớp với tên design
-        const matchedDesign = allDesigns.find(d => d.name === item.sku);
-        if (matchedDesign) {
-            frontSelect.value = matchedDesign.id;
-        }
-
-        itemsContainer.appendChild(clone);
+    // === CÁC HÀM HELPER ===
+    function showAlert(message) {
+        errorAlert.innerHTML = message;
+        errorAlert.classList.remove('d-none');
     }
 
-    // Lắng nghe sự kiện khi template được tải xong
-    document.addEventListener('fulfillTemplateLoaded', async (e) => {
-        const orderId = e.detail.orderId;
+    function setLoading(element, isLoading, text = "Loading...") {
+        if (isLoading) {
+            element.dataset.originalHtml = element.innerHTML;
+            element.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${text}`;
+            element.disabled = true;
+        } else {
+            element.innerHTML = element.dataset.originalHtml || '';
+            element.disabled = false;
+        }
+    }
+
+    // === CÁC HÀM RENDER GIAO DIỆN ===
+    function populateShippingForm(address, referenceId) {
+        form.elements['reference_id'].value = referenceId || '';
+        form.elements['shipping_first_name'].value = address.first_name || '';
+        form.elements['shipping_last_name'].value = address.last_name || '';
+        form.elements['shipping_address_1'].value = address.address_1 || '';
+        form.elements['shipping_address_2'].value = address.address_2 || '';
+        form.elements['shipping_city'].value = address.city || '';
+        form.elements['shipping_state'].value = address.state || '';
+        form.elements['shipping_postcode'].value = address.postcode || '';
+        form.elements['shipping_country'].value = address.country || 'US';
+        form.elements['shipping_phone'].value = address.phone || '';
+        form.elements['shipping_email'].value = address.email || '';
+    }
+
+    function renderOriginalOrderItems(items) {
+        originalItemsContainer.innerHTML = '';
+        if (!items || items.length === 0) {
+            originalItemsContainer.innerHTML = '<p class="text-muted small">Không có sản phẩm trong đơn gốc.</p>';
+            return;
+        }
+        items.forEach(item => {
+            const clone = originalItemTemplate.content.cloneNode(true);
+            const imgEl = clone.querySelector('img');
+            imgEl.src = item.image_url || 'https://via.placeholder.com/50';
+            imgEl.setAttribute('data-bs-toggle', 'modal');
+            imgEl.setAttribute('data-bs-target', '#imageModal');
+            imgEl.setAttribute('data-large-src', item.image_url);
+            clone.querySelector('strong').textContent = item.name;
+            clone.querySelector('span').textContent = `SL: ${item.quantity}`;
+            clone.querySelector('.original-item-variations').textContent = (item.variations || []).join(' | ');
+            originalItemsContainer.appendChild(clone);
+        });
+    }
+
+    function addFulfillmentItem(initialData = {}) {
+        const clone = fulfillItemTemplate.content.cloneNode(true);
+        if (initialData.quantity) {
+            clone.querySelector('[name="item_quantity"]').value = initialData.quantity;
+        }
+        fulfillItemsContainer.appendChild(clone);
+        return fulfillItemsContainer.lastElementChild;
+    }
+
+    function renderProductCatalog(searchTerm = '') {
+        productListContainer.innerHTML = '';
+        const lowerCaseSearchTerm = searchTerm.toLowerCase();
+        const filtered = productsData.products.filter(p => p.name.toLowerCase().includes(lowerCaseSearchTerm) || p.sku.toLowerCase().includes(lowerCaseSearchTerm));
+        
+        if (filtered.length === 0) {
+            productListContainer.innerHTML = '<p class="text-center text-muted p-3">Không tìm thấy sản phẩm.</p>';
+            return;
+        }
+        filtered.forEach(p => {
+            const clone = catalogItemTemplate.content.cloneNode(true);
+            clone.querySelector('img').src = p.image_url || 'https://via.placeholder.com/48';
+            clone.querySelector('.product-name').textContent = p.name;
+            clone.querySelector('.product-sku').textContent = `SKU: ${p.sku}`;
+            clone.querySelector('.select-product-catalog-btn').dataset.sku = p.sku;
+            clone.querySelector('.select-product-catalog-btn').dataset.name = p.name;
+            productListContainer.appendChild(clone);
+        });
+    }
+
+    async function fetchAndPopulateVariants(baseSku, itemElement) {
+        const colorSelect = itemElement.querySelector('.color-select');
+        const sizeSelect = itemElement.querySelector('.size-select');
+        [colorSelect, sizeSelect].forEach(el => {
+            el.innerHTML = '<option>Đang tải...</option>';
+            el.disabled = true;
+        });
 
         try {
-            // Lấy dữ liệu cần thiết từ backend
-            const [detailsRes, designsRes] = await Promise.all([
-                fetch(`/orders/get_fulfillment_details/${orderId}`),
-                fetch(`/designs/api/all`) // Cần tạo route này
-            ]);
+            const res = await fetch(`{{ url_for('orders.api_get_fulfillment_variants', provider_name='mangotee', sku='__SKU__') }}`.replace('__SKU__', baseSku));
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message);
 
-            const detailsData = await detailsRes.json();
-            const designsData = await designsRes.json();
-
-            if (!detailsData.success || !designsData.success) {
-                throw new Error(detailsData.message || designsData.message || 'Lỗi tải dữ liệu.');
-            }
+            itemElement.variantsData = data.variants;
+            const colors = [...new Set(data.variants.map(v => v.color))];
             
-            orderData = detailsData;
-            allDesigns = designsData.designs;
-
-            // Điền thông tin giao hàng
-            form.elements['shipping_name'].value = orderData.order_details.shipping_address.name;
-            form.elements['shipping_address1'].value = orderData.order_details.shipping_address.address1;
-            form.elements['shipping_phone'].value = orderData.order_details.shipping_address.phone;
-            form.elements['shipping_email'].value = orderData.order_details.shipping_address.email;
-            form.elements['shipping_city'].value = orderData.order_details.shipping_address.city;
-            form.elements['shipping_zip'].value = orderData.order_details.shipping_address.zip;
-
-            // Render các sản phẩm từ đơn hàng gốc
-            itemsContainer.innerHTML = '';
-            orderData.order_details.line_items.forEach(renderItem);
+            colorSelect.innerHTML = '<option value="">-- Chọn Màu --</option>';
+            colors.forEach(color => colorSelect.innerHTML += `<option value="${color}">${color}</option>`);
+            colorSelect.disabled = false;
+            sizeSelect.innerHTML = '<option>-- Chọn Size --</option>';
 
         } catch (error) {
-            itemsContainer.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+            showAlert(error.message);
+            colorSelect.innerHTML = '<option>Lỗi</option>';
         }
-    });
+    }
 
-    // Xử lý nút Thêm sản phẩm
-    document.getElementById('mangotee-add-item-btn').addEventListener('click', () => {
-        renderItem();
-    });
-
-    // Xử lý nút Xóa sản phẩm
-    itemsContainer.addEventListener('click', function(e) {
-        if (e.target.closest('.remove-item-btn')) {
-            e.target.closest('.mangotee-item').remove();
-        }
-    });
-
-    // Xử lý submit
-    submitBtn.addEventListener('click', async function() {
-        if (!orderData) return;
+    // === LOGIC CHÍNH & EVENT LISTENERS ===
+    
+    // 1. **KHỞI TẠO DỮ LIỆU (entry point)**
+    try {
+        const orderDetails = detailsData.order_details || {};
+        const shippingAddress = orderDetails.shipping_address || {};
+        const originalItems = orderDetails.original_line_items || [];
         
-        const btn = this;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang gửi...';
+        populateShippingForm(shippingAddress, orderDetails.reference_id);
+        renderOriginalOrderItems(originalItems);
+        originalItems.forEach(item => addFulfillmentItem(item));
+
+        const designOptions = designsData.designs.map(d => `<option value="${d.id}" data-url="${d.image_url}">${d.name}</option>`).join('');
+        document.querySelectorAll('[name="front_design_id"], [name="back_design_id"]').forEach(sel => {
+            sel.innerHTML += designOptions;
+        });
+        
+        renderProductCatalog();
+    } catch (error) {
+        showAlert(`Lỗi khởi tạo form: ${error.message}`);
+    }
+
+
+    // 2. Các hành động trong form fulfill
+    fulfillItemsContainer.addEventListener('click', function(e) {
+        const itemEl = e.target.closest('.fulfill-item');
+        if (!itemEl) return;
+
+        if (e.target.closest('.select-product-btn')) {
+            activeFulfillmentItem = itemEl;
+            catalogModal.show();
+        }
+        if (e.target.closest('.remove-item-btn')) {
+            itemEl.remove();
+        }
+    });
+
+    // 3. Các hành động trong catalog sản phẩm
+    document.getElementById('mangotee-add-item-btn').addEventListener('click', () => addFulfillmentItem());
+    searchInput.addEventListener('input', e => renderProductCatalog(e.target.value));
+    productListContainer.addEventListener('click', function(e) {
+        const selectBtn = e.target.closest('.select-product-catalog-btn');
+        if (selectBtn) {
+            e.preventDefault();
+            const baseSku = selectBtn.dataset.sku;
+            const productName = selectBtn.dataset.name;
+
+            activeFulfillmentItem.querySelector('[name="base_sku"]').value = baseSku;
+            const infoDiv = activeFulfillmentItem.querySelector('.selected-product-info');
+            infoDiv.textContent = productName;
+            infoDiv.classList.remove('d-none');
+            activeFulfillmentItem.querySelector('.select-product-btn').classList.add('d-none');
+            
+            ['.color-select', '.size-select', '[name="front_design_id"]', '[name="back_design_id"]'].forEach(sel => {
+                 activeFulfillmentItem.querySelector(sel).disabled = false;
+            });
+            
+            fetchAndPopulateVariants(baseSku, activeFulfillmentItem);
+            catalogModal.hide();
+        }
+    });
+    
+    // 4. Logic chọn biến thể
+    fulfillItemsContainer.addEventListener('change', function(e) {
+        const itemEl = e.target.closest('.fulfill-item');
+        if (!itemEl || !itemEl.variantsData) return;
+
+        const colorSelect = itemEl.querySelector('.color-select');
+        const sizeSelect = itemEl.querySelector('.size-select');
+        const variantSkuInput = itemEl.querySelector('[name="variant_sku"]');
+        const infoDiv = itemEl.querySelector('.selected-product-info');
+
+        if (e.target === colorSelect) {
+            const selectedColor = e.target.value;
+            const availableSizes = [...new Set(itemEl.variantsData.filter(v => v.color === selectedColor).map(v => v.size))];
+            sizeSelect.innerHTML = '<option value="">-- Chọn Size --</option>';
+            availableSizes.forEach(size => sizeSelect.innerHTML += `<option value="${size}">${size}</option>`);
+            sizeSelect.disabled = !selectedColor;
+            variantSkuInput.value = '';
+        }
+
+        if (e.target === sizeSelect) {
+            const selectedColor = colorSelect.value;
+            const selectedSize = e.target.value;
+            const finalVariant = itemEl.variantsData.find(v => v.color === selectedColor && v.size === selectedSize);
+            if (finalVariant) {
+                variantSkuInput.value = finalVariant.sku;
+                const baseName = infoDiv.textContent.split(' (')[0];
+                infoDiv.textContent = `${baseName} (${finalVariant.sku})`;
+            }
+        }
+    });
+
+    // 5. Gửi Form
+    submitBtn.addEventListener('click', async function() {
+        setLoading(this, true, 'Đang gửi...');
+        errorAlert.classList.add('d-none');
 
         const lineItemsPayload = [];
-        const itemElements = itemsContainer.querySelectorAll('.mangotee-item');
-        
+        let formIsValid = true;
+        const itemElements = fulfillItemsContainer.querySelectorAll('.fulfill-item');
+
         itemElements.forEach(itemEl => {
-            const sku = itemEl.querySelector('[name="item_sku"]').value;
+            itemEl.style.borderColor = '#dee2e6';
+            const variantSku = itemEl.querySelector('[name="variant_sku"]').value;
             const quantity = parseInt(itemEl.querySelector('[name="item_quantity"]').value, 10);
             const frontSelect = itemEl.querySelector('[name="front_design_id"]');
             const backSelect = itemEl.querySelector('[name="back_design_id"]');
-            const frontDesignUrl = frontSelect.options[frontSelect.selectedIndex]?.dataset.url;
-            const backDesignUrl = backSelect.options[backSelect.selectedIndex]?.dataset.url;
+            
+            if (!variantSku || quantity < 1 || (frontSelect.value === '' && backSelect.value === '')) {
+                itemEl.style.borderColor = 'red';
+                formIsValid = false;
+                return;
+            }
             
             const print_areas = {};
-            if (frontDesignUrl) print_areas.front = frontDesignUrl;
-            if (backDesignUrl) print_areas.back = backDesignUrl;
-
-            if (sku && quantity > 0 && Object.keys(print_areas).length > 0) {
-                lineItemsPayload.push({
-                    sku: sku,
-                    quantity: quantity,
-                    print_areas: print_areas
-                });
-            }
+            if (frontSelect.value) print_areas.front = designsData.designs.find(d => d.id == frontSelect.value)?.image_url;
+            if (backSelect.value) print_areas.back = designsData.designs.find(d => d.id == backSelect.value)?.image_url;
+            
+            lineItemsPayload.push({ sku: variantSku, quantity, print_areas });
         });
         
+        if (!formIsValid) {
+            showAlert('Dữ liệu không hợp lệ. Vui lòng kiểm tra các mục được đánh dấu đỏ. Mỗi sản phẩm phải được chọn biến thể (màu, size) và ít nhất 1 design.');
+            setLoading(this, false);
+            return;
+        }
+
         const finalPayload = {
-            reference_id: orderData.order_details.reference_id,
+            reference_id: form.elements['reference_id'].value,
             shipping_address: {
-                name: form.elements['shipping_name'].value,
-                address1: form.elements['shipping_address1'].value,
-                phone: form.elements['shipping_phone'].value,
+                first_name: form.elements['shipping_first_name'].value,
+                last_name: form.elements['shipping_last_name'].value,
+                address_1: form.elements['shipping_address_1'].value,
+                address_2: form.elements['shipping_address_2'].value,
+                phone: form.elements['shipping_phone'].value, 
                 email: form.elements['shipping_email'].value,
-                city: form.elements['shipping_city'].value,
-                zip: form.elements['shipping_zip'].value,
-                state: 'Hanoi',
-                country: 'VN'
+                city: form.elements['shipping_city'].value, 
+                postcode: form.elements['shipping_postcode'].value,
+                state: form.elements['shipping_state'].value, 
+                country: form.elements['shipping_country'].value
             },
             line_items: lineItemsPayload
         };
-
+        
         try {
-            const response = await fetch(`/orders/process_fulfillment/${orderData.order_details.reference_id.split('_').pop()}`, {
+            const response = await fetch(`{{ url_for('orders.process_fulfillment', order_id=0) }}`.slice(0,-1) + (detailsData.order_details.reference_id.split('_').pop() || '0'), {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    api_key: orderData.api_key,
-                    payload: finalPayload
-                })
+                body: JSON.stringify({ api_key: detailsData.api_key, payload: finalPayload })
             });
-
             const data = await response.json();
             if (!response.ok || !data.success) throw new Error(data.message);
             
-            // Sử dụng hàm showToast toàn cục nếu có
-            if (typeof showToast === 'function') {
-                showToast(data.message, 'success');
-            } else {
-                alert(data.message);
-            }
-            bootstrap.Modal.getInstance(document.getElementById('fulfillModal')).hide();
+            if (typeof window.showToast === 'function') window.showToast(data.message, 'success');
+            bootstrap.Modal.getInstance(mainModalEl).hide();
+            setTimeout(() => window.location.reload(), 1000);
 
         } catch (error) {
-            if (typeof showToast === 'function') {
-                showToast(error.message, 'danger');
-            } else {
-                alert(error.message);
-            }
+            showAlert(error.message);
         } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-send-check-fill"></i> Gửi Fulfill';
+            setLoading(this, false);
         }
     });
-})();
+
+}; 
 </script>

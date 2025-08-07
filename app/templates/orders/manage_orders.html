@@ -44,11 +44,20 @@
     #refund-summary-list li { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
     #refund-history-table th, #refund-history-table td { font-size: 0.9em; }
 
-    /* === START: CSS CHO KHUNG POPUP FULFILL === */
     #fulfillModal .modal-dialog {
-        max-width: 900px; /* Tăng độ rộng cho giao diện phức tạp hơn */
+        max-width: 900px; 
     }
-    /* === END: CSS CHO KHUNG POPUP FULFILL === */
+    .provider-btn {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px;
+        font-size: 1.1rem;
+    }
+    .provider-btn img {
+        height: 32px;
+        object-fit: contain;
+    }
 </style>
 {% endblock %}
 
@@ -110,6 +119,21 @@
 
 <div class="modal fade" id="refundModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="refundModalLabel">Hoàn tiền cho Đơn hàng #<span id="refund-wc-order-id"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="refund-loader" class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Đang lấy chi tiết đơn hàng...</p></div><div id="refund-content" class="d-none"><div class="row"><div class="col-md-6"><h6>Tóm tắt</h6><ul id="refund-summary-list"><li><span>Tổng đơn hàng:</span><strong id="refund-total-amount"></strong></li><li><span>Đã hoàn tiền:</span><span id="refund-total-refunded" class="text-danger"></span></li><li><span>Có thể hoàn:</span><strong id="refund-refundable-amount" class="text-success"></strong></li></ul><hr><h6>Thông tin thanh toán</h6><p class="mb-1"><strong>Phương thức:</strong> <span id="refund-payment-method"></span></p><p class="mb-1"><strong>Mã giao dịch:</strong> <span id="refund-transaction-id"></span></p></div><div class="col-md-6"><h6>Lịch sử hoàn tiền</h6><div class="table-responsive" style="max-height: 200px; overflow-y: auto;"><table class="table table-sm table-bordered" id="refund-history-table"><thead class="table-light"><tr><th>Ngày</th><th>Lý do</th><th class="text-end">Số tiền</th></tr></thead><tbody id="refund-history-body"></tbody></table></div></div></div><hr><h6>Tạo Hoàn tiền mới</h6><div class="row g-3"><div class="col-md-6"><label for="refund-amount-input" class="form-label">Số tiền hoàn lại</label><input type="number" class="form-control" id="refund-amount-input" step="0.01" placeholder="0.00"></div><div class="col-md-6"><label for="refund-reason-input" class="form-label">Lý do hoàn tiền (tùy chọn)</label><input type="text" class="form-control" id="refund-reason-input" placeholder="Ví dụ: Hàng lỗi"></div></div></div></div><div class="modal-footer justify-content-between"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary refund-action-btn" id="process-refund-manual-btn" data-api-refund="false" disabled><i class="bi bi-pencil-square"></i> Hoàn tiền Thủ công <span class="refund-btn-amount"></span></button><button type="button" class="btn btn-primary refund-action-btn" id="process-refund-api-btn" data-api-refund="true" disabled><i class="bi bi-credit-card"></i> Hoàn tiền qua Cổng TT <span class="refund-btn-amount"></span></button></div></div></div></div></div>
 
+<div class="modal fade" id="fulfillProviderSelectModal" tabindex="-1" aria-labelledby="fulfillProviderSelectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fulfillProviderSelectModalLabel">Chọn nhà cung cấp Fulfillment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Chọn một nhà cung cấp để tiếp tục gửi đơn hàng.</p>
+                <div id="fulfill-provider-list" class="d-grid gap-2">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="fulfillModal" tabindex="-1" aria-labelledby="fulfillModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -129,7 +153,7 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Toàn bộ các hàm và logic gốc của bạn được giữ nguyên ở đây
+    // === CÁC HÀM HELPER VÀ KHỞI TẠO CHUNG ===
     function showToast(message, category = 'info') {
         const toastContainer = document.querySelector('.toast-container');
         if (!toastContainer) return;
@@ -151,91 +175,96 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const adminFilter = document.getElementById('admin_id_filter');
     if (adminFilter) { adminFilter.addEventListener('change', function() { const userFilter = document.getElementById('user_id_filter'); if(userFilter) userFilter.value = ""; document.getElementById('filters-form').submit(); }); }
+    
     const imageModal = document.getElementById('imageModal');
     if (imageModal) { imageModal.addEventListener('show.bs.modal', function (event) { imageModal.querySelector('#modalImage').src = event.relatedTarget.getAttribute('data-large-src'); }); }
+
     
-    // Note saving logic
-    document.querySelectorAll('.order-note-textarea').forEach(textarea => {
-        textarea.addEventListener('blur', function() {
-            const orderId = this.dataset.orderId;
-            const originalValue = this.dataset.originalValue;
-            const newValue = this.value;
-            const statusDiv = this.parentElement.querySelector('.save-status');
-            if (originalValue.trim() === newValue.trim()) { return; }
-            statusDiv.textContent = 'Đang lưu...';
-            statusDiv.className = 'save-status saving show';
-            fetch(`/orders/update_note/${orderId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ note: newValue })
-            })
-            .then(response => response.json().then(data => ({ ok: response.ok, data })))
-            .then(({ ok, data }) => {
-                if (ok && data.success) {
-                    this.dataset.originalValue = newValue;
-                    statusDiv.textContent = 'Đã lưu!';
-                    statusDiv.className = 'save-status saved show';
-                } else { throw new Error(data.message || 'Lỗi không xác định.'); }
-            })
-            .catch(error => {
-                statusDiv.textContent = 'Lỗi!';
-                statusDiv.className = 'save-status error show';
-                this.value = originalValue;
-                showToast('Lỗi khi lưu ghi chú: ' + error.message, 'danger');
-            })
-            .finally(() => { setTimeout(() => { statusDiv.classList.remove('show'); }, 2000); });
-        });
-    });
-
-    // Status update logic
-    document.querySelectorAll('.status-select').forEach(select => {
-        const allStatusClasses = ['status-processing', 'status-completed', 'status-on-hold', 'status-failed', 'status-cancelled', 'status-refunded', 'status-pending'];
-        select.addEventListener('change', function() {
-            const originalStatus = this.dataset.originalStatus;
-            const newStatus = this.value;
-            const saveBtn = this.nextElementSibling;
-            saveBtn.disabled = (originalStatus === newStatus);
-            this.classList.remove(...allStatusClasses);
-            this.classList.add(`status-${newStatus}`);
-        });
-    });
-
-    document.querySelectorAll('.status-save-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const select = this.previousElementSibling;
-            const orderId = select.dataset.orderId;
-            const wcOrderId = select.dataset.wcOrderId;
-            const newStatus = select.value;
-            const originalHtml = this.innerHTML;
-            const allStatusClasses = ['status-processing', 'status-completed', 'status-on-hold', 'status-failed', 'status-cancelled', 'status-refunded', 'status-pending'];
-            this.disabled = true;
-            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-            fetch(`/orders/update_status/${orderId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus })
-            })
-            .then(response => response.json().then(data => ({ ok: response.ok, data })))
-            .then(({ ok, data }) => {
-                if (ok && data.success) {
-                    select.dataset.originalStatus = data.new_status;
-                    showToast(`Đơn hàng #${wcOrderId}: ${data.message}`, 'success');
-                } else { throw new Error(data.message || 'Lỗi server.'); }
-            })
-            .catch(error => {
-                const originalStatus = select.dataset.originalStatus;
-                select.value = originalStatus;
-                select.classList.remove(...allStatusClasses);
-                select.classList.add(`status-${originalStatus}`);
-                showToast(`Đơn hàng #${wcOrderId}: ${error.message}`, 'danger');
-            })
-            .finally(() => {
-                this.innerHTML = '<i class="bi bi-save"></i>';
+    // === LOGIC XỬ LÝ NOTE VÀ STATUS ===
+    function initNoteSaving() {
+        document.querySelectorAll('.order-note-textarea').forEach(textarea => {
+            textarea.addEventListener('blur', function() {
+                const orderId = this.dataset.orderId;
+                const originalValue = this.dataset.originalValue;
+                const newValue = this.value;
+                const statusDiv = this.parentElement.querySelector('.save-status');
+                if (originalValue.trim() === newValue.trim()) { return; }
+                statusDiv.textContent = 'Đang lưu...';
+                statusDiv.className = 'save-status saving show';
+                fetch(`/orders/update_note/${orderId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note: newValue })
+                })
+                .then(response => response.json().then(data => ({ ok: response.ok, data })))
+                .then(({ ok, data }) => {
+                    if (ok && data.success) {
+                        this.dataset.originalValue = newValue;
+                        statusDiv.textContent = 'Đã lưu!';
+                        statusDiv.className = 'save-status saved show';
+                    } else { throw new Error(data.message || 'Lỗi không xác định.'); }
+                })
+                .catch(error => {
+                    statusDiv.textContent = 'Lỗi!';
+                    statusDiv.className = 'save-status error show';
+                    this.value = originalValue;
+                    showToast('Lỗi khi lưu ghi chú: ' + error.message, 'danger');
+                })
+                .finally(() => { setTimeout(() => { statusDiv.classList.remove('show'); }, 2000); });
             });
         });
-    });
+    }
 
-    // Refund logic
+    function initStatusUpdate() {
+        document.querySelectorAll('.status-select').forEach(select => {
+            const allStatusClasses = ['status-processing', 'status-completed', 'status-on-hold', 'status-failed', 'status-cancelled', 'status-refunded', 'status-pending'];
+            select.addEventListener('change', function() {
+                const originalStatus = this.dataset.originalStatus;
+                const newStatus = this.value;
+                const saveBtn = this.nextElementSibling;
+                saveBtn.disabled = (originalStatus === newStatus);
+                this.classList.remove(...allStatusClasses);
+                this.classList.add(`status-${newStatus}`);
+            });
+        });
+
+        document.querySelectorAll('.status-save-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const select = this.previousElementSibling;
+                const orderId = select.dataset.orderId;
+                const wcOrderId = select.dataset.wcOrderId;
+                const newStatus = select.value;
+                const originalHtml = this.innerHTML;
+                const allStatusClasses = ['status-processing', 'status-completed', 'status-on-hold', 'status-failed', 'status-cancelled', 'status-refunded', 'status-pending'];
+                this.disabled = true;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                fetch(`/orders/update_status/${orderId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                })
+                .then(response => response.json().then(data => ({ ok: response.ok, data })))
+                .then(({ ok, data }) => {
+                    if (ok && data.success) {
+                        select.dataset.originalStatus = data.new_status;
+                        showToast(`Đơn hàng #${wcOrderId}: ${data.message}`, 'success');
+                    } else { throw new Error(data.message || 'Lỗi server.'); }
+                })
+                .catch(error => {
+                    const originalStatus = select.dataset.originalStatus;
+                    select.value = originalStatus;
+                    select.classList.remove(...allStatusClasses);
+                    select.classList.add(`status-${originalStatus}`);
+                    showToast(`Đơn hàng #${wcOrderId}: ${error.message}`, 'danger');
+                })
+                .finally(() => {
+                    this.innerHTML = '<i class="bi bi-save"></i>';
+                });
+            });
+        });
+    }
+
+    // === LOGIC HOÀN TIỀN ===
     const refundModalElement = document.getElementById('refundModal');
     const refundModal = new bootstrap.Modal(refundModalElement);
     const refundLoader = document.getElementById('refund-loader');
@@ -256,110 +285,68 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.refund-btn-amount').forEach(span => span.textContent = '');
         currentOrderIdForRefund = null;
     }
-    
-    // Gộp các event listener vào chung một vòng lặp
-    document.querySelector('body').addEventListener('click', async function(e) {
-        const refundBtn = e.target.closest('.refund-btn');
-        const refundActionBtn = e.target.closest('.refund-action-btn');
-        const fulfillBtn = e.target.closest('.fulfill-btn');
 
-        if (refundBtn) {
-            currentOrderIdForRefund = refundBtn.dataset.orderId;
-            document.getElementById('refund-wc-order-id').textContent = refundBtn.dataset.wcOrderId;
-            refundModal.show();
+    async function handleRefundButtonClick(orderId, wcOrderId) {
+        currentOrderIdForRefund = orderId;
+        document.getElementById('refund-wc-order-id').textContent = wcOrderId;
+        refundModal.show();
+        
+        try {
+            const response = await fetch(`/orders/get_refund_details/${currentOrderIdForRefund}`);
+            const data = await response.json();
+            if (!response.ok || !data.success) { throw new Error(data.message || 'Lỗi không xác định.'); }
             
-            try {
-                const response = await fetch(`/orders/get_refund_details/${currentOrderIdForRefund}`);
-                const data = await response.json();
-                if (!response.ok || !data.success) { throw new Error(data.message || 'Lỗi không xác định.'); }
-                
-                const currencySymbol = data.currency === 'VND' ? '₫' : '$';
-                document.getElementById('refund-total-amount').textContent = `${parseFloat(data.total_amount).toLocaleString('en-US')} ${currencySymbol}`;
-                document.getElementById('refund-total-refunded').textContent = `-${parseFloat(data.total_refunded).toLocaleString('en-US')} ${currencySymbol}`;
-                document.getElementById('refund-refundable-amount').textContent = `${parseFloat(data.refundable_amount).toLocaleString('en-US')} ${currencySymbol}`;
-                document.getElementById('refund-payment-method').textContent = data.payment_method_title;
-                document.getElementById('refund-transaction-id').textContent = data.transaction_id || 'N/A';
-                
-                const historyBody = document.getElementById('refund-history-body');
-                historyBody.innerHTML = data.refunds.length > 0 ? data.refunds.map(r => `<tr><td>${new Date(r.date).toLocaleString('vi-VN')}</td><td>${r.reason}</td><td class="text-end text-danger">-${parseFloat(r.amount).toLocaleString('en-US')} ${currencySymbol}</td></tr>`).join('') : '<tr><td colspan="3" class="text-center text-muted">Chưa có lịch sử hoàn tiền.</td></tr>';
-                
-                refundAmountInput.max = data.refundable_amount;
-                refundAmountInput.value = data.refundable_amount;
-                
-                refundApiBtn.disabled = ['bacs', 'cod'].includes(data.payment_method);
-                refundApiBtn.title = refundApiBtn.disabled ? 'Không thể hoàn tiền tự động cho phương thức thanh toán này' : '';
-                refundAmountInput.dispatchEvent(new Event('input'));
-                
-                refundLoader.classList.add('d-none');
-                refundContent.classList.remove('d-none');
-            } catch (error) {
-                refundLoader.innerHTML = `<div class="alert alert-danger"><strong>Lỗi:</strong> ${error.message}</div>`;
-            }
+            const currencySymbol = data.currency === 'VND' ? '₫' : '$';
+            document.getElementById('refund-total-amount').textContent = `${parseFloat(data.total_amount).toLocaleString('en-US')} ${currencySymbol}`;
+            document.getElementById('refund-total-refunded').textContent = `-${parseFloat(data.total_refunded).toLocaleString('en-US')} ${currencySymbol}`;
+            document.getElementById('refund-refundable-amount').textContent = `${parseFloat(data.refundable_amount).toLocaleString('en-US')} ${currencySymbol}`;
+            document.getElementById('refund-payment-method').textContent = data.payment_method_title;
+            document.getElementById('refund-transaction-id').textContent = data.transaction_id || 'N/A';
+            
+            const historyBody = document.getElementById('refund-history-body');
+            historyBody.innerHTML = data.refunds.length > 0 ? data.refunds.map(r => `<tr><td>${new Date(r.date).toLocaleString('vi-VN')}</td><td>${r.reason}</td><td class="text-end text-danger">-${parseFloat(r.amount).toLocaleString('en-US')} ${currencySymbol}</td></tr>`).join('') : '<tr><td colspan="3" class="text-center text-muted">Chưa có lịch sử hoàn tiền.</td></tr>';
+            
+            refundAmountInput.max = data.refundable_amount;
+            refundAmountInput.value = data.refundable_amount;
+            
+            refundApiBtn.disabled = ['bacs', 'cod'].includes(data.payment_method);
+            refundApiBtn.title = refundApiBtn.disabled ? 'Không thể hoàn tiền tự động cho phương thức thanh toán này' : '';
+            refundAmountInput.dispatchEvent(new Event('input'));
+            
+            refundLoader.classList.add('d-none');
+            refundContent.classList.remove('d-none');
+        } catch (error) {
+            refundLoader.innerHTML = `<div class="alert alert-danger"><strong>Lỗi:</strong> ${error.message}</div>`;
         }
+    }
 
-        if (refundActionBtn) {
-            const amount = refundAmountInput.value;
-            const reason = document.getElementById('refund-reason-input').value;
-            const apiRefund = refundActionBtn.dataset.apiRefund === 'true';
+    async function handleRefundAction(refundActionBtn) {
+        const amount = refundAmountInput.value;
+        const reason = document.getElementById('refund-reason-input').value;
+        const apiRefund = refundActionBtn.dataset.apiRefund === 'true';
+        
+        const originalBtnHtml = refundActionBtn.innerHTML;
+        allRefundBtns.forEach(b => b.disabled = true);
+        refundActionBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang xử lý...';
+        
+        try {
+            const response = await fetch(`/orders/process_refund/${currentOrderIdForRefund}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({amount, reason, api_refund: apiRefund})
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) { throw new Error(data.message || 'Lỗi không xác định.'); }
             
-            const originalBtnHtml = refundActionBtn.innerHTML;
-            allRefundBtns.forEach(b => b.disabled = true);
-            refundActionBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang xử lý...';
-            
-            try {
-                const response = await fetch(`/orders/process_refund/${currentOrderIdForRefund}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({amount, reason, api_refund: apiRefund})
-                });
-                const data = await response.json();
-                if (!response.ok || !data.success) { throw new Error(data.message || 'Lỗi không xác định.'); }
-                
-                showToast(data.message, 'success');
-                refundModal.hide();
-                setTimeout(() => window.location.reload(), 1500);
-            } catch (error) {
-                showToast(`Lỗi hoàn tiền: ${error.message}`, 'danger');
-                refundActionBtn.innerHTML = originalBtnHtml;
-                refundAmountInput.dispatchEvent(new Event('input'));
-            }
+            showToast(data.message, 'success');
+            refundModal.hide();
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (error) {
+            showToast(`Lỗi hoàn tiền: ${error.message}`, 'danger');
+            refundActionBtn.innerHTML = originalBtnHtml;
+            refundAmountInput.dispatchEvent(new Event('input'));
         }
-
-        // === START: SỬA LỖI - LOGIC FULFILL ĐÃ TÁI CẤU TRÚC ===
-        if (fulfillBtn) {
-            const orderId = fulfillBtn.dataset.orderId;
-            const fulfillModalEl = document.getElementById('fulfillModal');
-            const fulfillModal = bootstrap.Modal.getInstance(fulfillModalEl) || new bootstrap.Modal(fulfillModalEl);
-            const fulfillModalContent = document.getElementById('fulfill-modal-content');
-            
-            fulfillModalContent.innerHTML = `
-                <div class="modal-body text-center p-5">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="mt-2 mb-0">Đang tải giao diện Fulfill...</p>
-                </div>
-            `;
-            fulfillModal.show();
-
-            try {
-                const provider = 'mangotee'; // Hiện tại chỉ có mangotee
-                
-                // Fetch template HTML của nhà cung cấp
-                const templateResponse = await fetch(`/orders/get_fulfillment_template/${provider}`);
-                if (!templateResponse.ok) throw new Error('Không thể tải giao diện fulfill.');
-                const templateHtml = await templateResponse.text();
-
-                fulfillModalContent.innerHTML = templateHtml;
-                
-                // Gửi sự kiện báo cho script trong template biết nó đã được tải và truyền ID đơn hàng
-                const event = new CustomEvent('fulfillTemplateLoaded', { detail: { orderId: orderId } });
-                document.dispatchEvent(event);
-
-            } catch (error) {
-                fulfillModalContent.innerHTML = `<div class="modal-body"><div class="alert alert-danger mb-0">${error.message}</div></div>`;
-            }
-        }
-        // === END: SỬA LỖI ===
-    });
+    }
 
     refundAmountInput.addEventListener('input', function() {
         const amount = parseFloat(this.value) || 0;
@@ -374,6 +361,97 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     refundModalElement.addEventListener('hidden.bs.modal', resetRefundModal);
+
+    // === LOGIC FULFILLMENT ===
+    const fulfillProviderSelectModalEl = document.getElementById('fulfillProviderSelectModal');
+    const fulfillProviderSelectModal = new bootstrap.Modal(fulfillProviderSelectModalEl);
+    const fulfillModalEl = document.getElementById('fulfillModal');
+    const fulfillModal = new bootstrap.Modal(fulfillModalEl);
+    let currentOrderIdForFulfill = null;
+
+    const availableProviders = [
+        { 
+            key: 'mangotee', 
+            name: 'Fulfill qua MangoTee', 
+            logo: 'https://mangoteeprints.com/wp-content/uploads/2024/05/cropped-MANGOTEE-LOGO-web-2-e1715845019777-300x121.png' 
+        }
+    ];
+
+    async function openFulfillInterface(providerKey) {
+        const fulfillModalContent = document.getElementById('fulfill-modal-content');
+        
+        fulfillModalContent.innerHTML = `
+            <div class="modal-body text-center p-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 mb-0">Đang tải giao diện Fulfill...</p>
+            </div>
+        `;
+        fulfillModal.show();
+
+        try {
+            const templateResponse = await fetch(`/orders/get_fulfillment_template/${providerKey}`);
+            if (!templateResponse.ok) throw new Error('Không thể tải giao diện fulfill.');
+            const templateHtml = await templateResponse.text();
+
+            fulfillModalContent.innerHTML = templateHtml;
+            
+            const event = new CustomEvent('fulfillTemplateLoaded', { detail: { orderId: currentOrderIdForFulfill } });
+            document.dispatchEvent(event);
+
+        } catch (error) {
+            fulfillModalContent.innerHTML = `<div class="modal-body"><div class="alert alert-danger mb-0">${error.message}</div></div>`;
+        }
+    }
+
+    // === ĐĂNG KÝ SỰ KIỆN CHÍNH ===
+    document.body.addEventListener('click', async function(e) {
+        const fulfillBtn = e.target.closest('.fulfill-btn');
+        const providerSelectBtn = e.target.closest('.provider-select-btn');
+        const refundBtn = e.target.closest('.refund-btn');
+        const refundActionBtn = e.target.closest('.refund-action-btn');
+
+        if (fulfillBtn) {
+            e.preventDefault();
+            currentOrderIdForFulfill = fulfillBtn.dataset.orderId;
+            const providerListDiv = document.getElementById('fulfill-provider-list');
+            providerListDiv.innerHTML = '';
+            availableProviders.forEach(provider => {
+                providerListDiv.innerHTML += `
+                    <button type="button" class="btn btn-outline-primary provider-select-btn provider-btn" data-provider-key="${provider.key}">
+                        <img src="${provider.logo}" alt="${provider.name} logo">
+                        <span>${provider.name}</span>
+                    </button>`;
+            });
+            fulfillProviderSelectModal.show();
+            return;
+        }
+
+        if (providerSelectBtn) {
+            e.preventDefault();
+            const providerKey = providerSelectBtn.dataset.providerKey;
+            fulfillProviderSelectModal.hide();
+            setTimeout(() => { openFulfillInterface(providerKey); }, 200);
+            return;
+        }
+
+        if (refundBtn) {
+            e.preventDefault();
+            const orderId = refundBtn.dataset.orderId;
+            const wcOrderId = refundBtn.dataset.wcOrderId;
+            handleRefundButtonClick(orderId, wcOrderId);
+            return;
+        }
+
+        if (refundActionBtn) {
+            e.preventDefault();
+            handleRefundAction(refundActionBtn);
+            return;
+        }
+    });
+
+    // Khởi chạy các chức năng
+    initNoteSaving();
+    initStatusUpdate();
 });
 </script>
 {% endblock %}
