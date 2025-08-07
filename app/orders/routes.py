@@ -22,8 +22,10 @@ def manage_all_orders():
     per_page = 20
     search_query = request.args.get('search_query', '').strip()
     selected_store_id = request.args.get('store_id', type=int)
-    # === THÊM MỚI: Lấy tham số lọc trạng thái từ URL ===
     selected_status = request.args.get('status', '')
+    # === THÊM MỚI: Lấy tham số lọc theo người dùng ===
+    selected_admin_id = request.args.get('admin_id', type=int)
+    selected_user_id = request.args.get('user_id', type=int)
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
 
@@ -36,6 +38,32 @@ def manage_all_orders():
         )
     
     query = base_query
+
+    # === THÊM MỚI: Logic lấy danh sách người dùng cho bộ lọc ===
+    admins_for_filter = []
+    users_for_filter = []
+    if current_user.is_super_admin():
+        admins_for_filter = AppUser.query.filter(AppUser.role.in_(['admin', 'super_admin'])).order_by(AppUser.username).all()
+        if selected_admin_id:
+            admin_owner = AppUser.query.get(selected_admin_id)
+            if admin_owner:
+                users_for_filter = admin_owner.children.order_by(AppUser.username).all()
+    elif current_user.is_admin():
+        users_for_filter = current_user.children.order_by(AppUser.username).all()
+    
+    # === THÊM MỚI: Áp dụng bộ lọc theo người dùng vào câu truy vấn ===
+    if selected_user_id:
+        # Nếu một user cụ thể được chọn, lọc theo user đó
+        query = query.filter(WooCommerceStore.user_id == selected_user_id)
+    elif selected_admin_id:
+        # Nếu một admin được chọn (và không có user cụ thể), lọc theo tất cả user con của admin đó
+        admin_owner = AppUser.query.get(selected_admin_id)
+        if admin_owner:
+            child_ids = [child.id for child in admin_owner.children]
+            # Super Admin có thể xem cả đơn của chính Admin đó
+            if admin_owner.is_super_admin() or admin_owner.is_admin():
+                 child_ids.append(admin_owner.id)
+            query = query.filter(WooCommerceStore.user_id.in_(child_ids))
 
     if search_query:
         search_conditions = [
@@ -56,7 +84,6 @@ def manage_all_orders():
     if selected_store_id:
         query = query.filter(WooCommerceOrder.store_id == selected_store_id)
 
-    # === THÊM MỚI: Áp dụng bộ lọc trạng thái vào câu truy vấn ===
     if selected_status:
         query = query.filter(WooCommerceOrder.status == selected_status)
 
@@ -81,13 +108,10 @@ def manage_all_orders():
 
     try:
         columns_config_json = Setting.get_value('ORDER_TABLE_COLUMNS', '[]')
-        if not columns_config_json:
-            columns_config_json = '[]'
-        columns_config = json.loads(columns_config_json)
+        columns_config = json.loads(columns_config_json or '[]')
     except (json.JSONDecodeError, TypeError):
         columns_config = []
     
-    # === THÊM MỚI: Định nghĩa danh sách trạng thái để gửi ra template ===
     statuses = [
         ('pending', 'Chờ thanh toán'), ('processing', 'Đang xử lý'),
         ('on-hold', 'Tạm giữ'), ('completed', 'Hoàn thành'),
@@ -106,9 +130,13 @@ def manage_all_orders():
         end_date=end_date_str,
         stores_for_filter=stores_for_filter,
         columns_config=columns_config,
-        # === THÊM MỚI: Truyền các biến mới ra template ===
         statuses=statuses,
-        selected_status=selected_status
+        selected_status=selected_status,
+        # === THÊM MỚI: Truyền các biến mới ra template ===
+        admins_for_filter=admins_for_filter,
+        users_for_filter=users_for_filter,
+        selected_admin_id=selected_admin_id,
+        selected_user_id=selected_user_id
     )
 
 @orders_bp.route('/update_note/<int:order_id>', methods=['POST'])

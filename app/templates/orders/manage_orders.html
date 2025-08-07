@@ -154,10 +154,40 @@
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <form id="filters-form" action="{{ url_for('orders.manage_all_orders') }}" method="GET">
+            <!-- === SỬA LỖI: TÁCH Ô TÌM KIẾM RA HÀNG RIÊNG === -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <label for="search_query" class="form-label">Tìm kiếm</label>
+                    <input type="text" class="form-control form-control-sm" id="search_query" name="search_query" placeholder="Mã đơn hàng, tên khách, SĐT, email, SKU sản phẩm..." value="{{ search_query or '' }}">
+                </div>
+            </div>
+            
             <div class="row g-2 align-items-end">
-                <div class="col-md"><label for="search_query" class="form-label">Tìm kiếm</label><input type="text" class="form-control form-control-sm" id="search_query" name="search_query" placeholder="Mã đơn hàng, tên khách..." value="{{ search_query or '' }}"></div>
+                {% if current_user.is_super_admin() %}
+                <div class="col-md-2">
+                    <label for="admin_id_filter" class="form-label">Lọc theo Admin</label>
+                    <select class="form-select form-select-sm" id="admin_id_filter" name="admin_id">
+                        <option value="">Tất cả Admin</option>
+                        {% for admin in admins_for_filter %}
+                            <option value="{{ admin.id }}" {% if admin.id == selected_admin_id %}selected{% endif %}>{{ admin.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                {% if current_user.is_super_admin() or current_user.is_admin() %}
+                <div class="col-md-2">
+                    <label for="user_id_filter" class="form-label">Lọc theo User</label>
+                    <select class="form-select form-select-sm" id="user_id_filter" name="user_id">
+                        <option value="">Tất cả User</option>
+                        {% for user in users_for_filter %}
+                            <option value="{{ user.id }}" {% if user.id == selected_user_id %}selected{% endif %}>{{ user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
                 <div class="col-md-2"><label for="store_id_filter" class="form-label">Cửa hàng</label><select class="form-select form-select-sm" id="store_id_filter" name="store_id"><option value="">Tất cả</option>{% for store in stores_for_filter %}<option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>{% endfor %}</select></div>
-                
                 <div class="col-md-2">
                     <label for="status_filter" class="form-label">Trạng thái</label>
                     <select class="form-select form-select-sm" id="status_filter" name="status">
@@ -167,10 +197,9 @@
                         {% endfor %}
                     </select>
                 </div>
-                
                 <div class="col-md-2"><label for="start_date" class="form-label">Từ ngày</label><input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date or '' }}"></div>
                 <div class="col-md-2"><label for="end_date" class="form-label">Đến ngày</label><input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date or '' }}"></div>
-                <div class="col-md-auto"><div class="d-flex gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('orders.manage_all_orders') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div>
+                <div class="col-md-auto ms-auto"><div class="d-flex gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('orders.manage_all_orders') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div>
             </div>
         </form>
     </div>
@@ -280,17 +309,6 @@
     </table>
 </div>
 
-{% if pagination and pagination.pages > 1 %}
-<nav aria-label="Page navigation"><ul class="pagination justify-content-center mt-4">
-    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.prev_num, search_query=search_query, store_id=selected_store_id, status=selected_status, start_date=start_date, end_date=end_date) }}">&laquo;</a></li>
-    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=3) %}
-      {% if page_num %}<li class="page-item {% if page_num == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=page_num, search_query=search_query, store_id=selected_store_id, status=selected_status, start_date=start_date, end_date=end_date) }}">{{ page_num }}</a></li>
-      {% else %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}
-    {% endfor %}
-    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.next_num, search_query=search_query, store_id=selected_store_id, status=selected_status, start_date=start_date, end_date=end_date) }}">&raquo;</a></li>
-</ul></nav>
-{% endif %}
-
 <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -305,6 +323,19 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const adminFilter = document.getElementById('admin_id_filter');
+    const userFilter = document.getElementById('user_id_filter');
+    const form = document.getElementById('filters-form');
+
+    if (adminFilter) {
+        adminFilter.addEventListener('change', function() {
+            if (userFilter) {
+                userFilter.value = ""; 
+            }
+            form.submit();
+        });
+    }
+
     const imageModal = document.getElementById('imageModal');
     if (imageModal) {
         imageModal.addEventListener('show.bs.modal', function (event) {
