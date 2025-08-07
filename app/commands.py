@@ -29,6 +29,9 @@ def seed_db_command():
         {"key": "total", "label": "Tổng tiền", "visible": True, "type": "currency", "width": "120px"},
         {"key": "status", "label": "Trạng thái", "visible": True, "type": "badge", "width": "120px"},
         {"key": "note", "label": "Ghi Chú Seller", "visible": True, "type": "text", "width": "20%"},
+        # === START: THÊM CỘT HÀNH ĐỘNG MỚI ===
+        {"key": "actions", "label": "Hành động", "visible": True, "type": "actions", "width": "110px"},
+        # === END: THÊM CỘT HÀNH ĐỘNG MỚI ===
         {"key": "owner_username", "label": "Người dùng", "visible": False, "type": "text", "width": "100px"},
         {"key": "payment_method_title", "label": "Phương thức TT", "visible": False, "type": "text", "width": "150px"},
         {"key": "shipping_total", "label": "Phí Ship", "visible": False, "type": "currency", "width": "100px"},
