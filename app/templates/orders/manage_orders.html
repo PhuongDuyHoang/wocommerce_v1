@@ -154,7 +154,6 @@
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <form id="filters-form" action="{{ url_for('orders.manage_all_orders') }}" method="GET">
-            <!-- === SỬA LỖI: TÁCH Ô TÌM KIẾM RA HÀNG RIÊNG === -->
             <div class="row mb-3">
                 <div class="col-12">
                     <label for="search_query" class="form-label">Tìm kiếm</label>
@@ -250,8 +249,17 @@
                                 ${{ "{:,.2f}".format(order[column.key] or 0) }}
                             
                             {% elif column.key == 'status' %}
+                                {% set statuses = [
+                                    ('pending', 'Chờ thanh toán'), ('processing', 'Đang xử lý'),
+                                    ('on-hold', 'Tạm giữ'), ('completed', 'Hoàn thành'),
+                                    ('cancelled', 'Đã hủy'), ('refunded', 'Đã hoàn tiền'),
+                                    ('failed', 'Thất bại')
+                                ] %}
                                 <div class="status-update-form">
-                                    <select class="form-select form-select-sm status-select status-{{ order.status }}" data-order-id="{{ order.id }}" data-original-status="{{ order.status }}">
+                                    <select class="form-select form-select-sm status-select status-{{ order.status }}" 
+                                            data-order-id="{{ order.id }}" 
+                                            data-wc-order-id="{{ order.wc_order_id }}"
+                                            data-original-status="{{ order.status }}">
                                         {% for status_val, status_text in statuses %}
                                             <option value="{{ status_val }}" {% if order.status == status_val %}selected{% endif %}>
                                                 {{ status_text }}
@@ -323,6 +331,39 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // === HÀM HIỂN THỊ THÔNG BÁO TOAST (ĐÃ LOẠI BỎ NOTIFICATION CỦA TRÌNH DUYỆT) ===
+    function showToast(message, category = 'info') {
+        const toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) return;
+
+        let bgColor = 'bg-primary';
+        if (category === 'success') bgColor = 'bg-success';
+        if (category === 'danger') bgColor = 'bg-danger';
+        if (category === 'warning') bgColor = 'bg-warning text-dark';
+
+        const toastEl = document.createElement('div');
+        toastEl.className = `toast align-items-center text-white ${bgColor} border-0`;
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.setAttribute('aria-atomic', 'true');
+
+        toastEl.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+        
+        toastContainer.appendChild(toastEl);
+        
+        const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+        toast.show();
+        
+        toastEl.addEventListener('hidden.bs.toast', () => {
+            toastEl.remove();
+        });
+    }
+
     const adminFilter = document.getElementById('admin_id_filter');
     const userFilter = document.getElementById('user_id_filter');
     const form = document.getElementById('filters-form');
@@ -375,7 +416,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusDiv.textContent = 'Lỗi!';
                 statusDiv.className = 'save-status error show';
                 this.value = originalValue;
-                alert('Lỗi khi lưu ghi chú: ' + error.message);
+                showToast('Lỗi khi lưu ghi chú: ' + error.message, 'danger');
             })
             .finally(() => {
                 setTimeout(() => { statusDiv.classList.remove('show'); }, 2000);
@@ -402,6 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const select = this.previousElementSibling;
             const orderId = select.dataset.orderId;
+            const wcOrderId = select.dataset.wcOrderId;
             const newStatus = select.value;
             const originalHtml = this.innerHTML;
 
@@ -417,7 +459,8 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(({ ok, data }) => {
                 if (ok && data.success) {
                     select.dataset.originalStatus = data.new_status;
-                    alert('Cập nhật trạng thái thành công!');
+                    const successMsg = `Đơn hàng #${wcOrderId}: ${data.message}`;
+                    showToast(successMsg, 'success');
                 } else {
                     throw new Error(data.message || 'Lỗi không xác định từ server.');
                 }
@@ -427,7 +470,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 select.value = originalStatus;
                 select.classList.remove(...allStatusClasses);
                 select.classList.add(`status-${originalStatus}`);
-                alert('Lỗi khi cập nhật trạng thái: ' + error.message);
+                const errorMsg = `Đơn hàng #${wcOrderId}: ${error.message}`;
+                showToast(errorMsg, 'danger');
             })
             .finally(() => {
                 this.innerHTML = originalHtml;
