@@ -1,0 +1,254 @@
+<div class="modal-header">
+    <h5 class="modal-title" id="fulfillModalLabel">Fulfill Đơn hàng #<span id="fulfill-wc-order-id"></span> qua Mango Tee</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+
+<div class="modal-body">
+    <form id="mangoteeFulfillForm">
+        <div class="row">
+            <div class="col-md-5">
+                <h6><i class="bi bi-truck me-2"></i>Thông tin giao hàng</h6>
+                <div class="mb-2">
+                    <label class="form-label small">Tên khách hàng</label>
+                    <input type="text" class="form-control form-control-sm" name="shipping_name" required>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Địa chỉ</label>
+                    <input type="text" class="form-control form-control-sm" name="shipping_address1" required>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Số điện thoại</label>
+                    <input type="text" class="form-control form-control-sm" name="shipping_phone" required>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Email</label>
+                    <input type="email" class="form-control form-control-sm" name="shipping_email" required>
+                </div>
+                <div class="row g-2">
+                    <div class="col-sm-6">
+                        <label class="form-label small">Thành phố</label>
+                        <input type="text" class="form-control form-control-sm" name="shipping_city" required>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label small">Mã ZIP</label>
+                        <input type="text" class="form-control form-control-sm" name="shipping_zip" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-7">
+                <h6><i class="bi bi-box-seam me-2"></i>Sản phẩm Fulfill</h6>
+                <div id="mangotee-line-items-container" class="border rounded p-2" style="max-height: 400px; overflow-y: auto;">
+                    </div>
+                <div class="d-grid mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="mangotee-add-item-btn">
+                        <i class="bi bi-plus-lg"></i> Thêm sản phẩm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+    <button type="button" class="btn btn-primary" id="submit-mangotee-fulfillment-btn">
+        <i class="bi bi-send-check-fill"></i> Gửi Fulfill
+    </button>
+</div>
+
+<template id="mangotee-item-template">
+    <div class="p-2 border-bottom mangotee-item">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <p class="mb-0 small text-muted">Sản phẩm từ đơn hàng gốc</p>
+            <button type="button" class="btn-close btn-sm remove-item-btn" title="Xóa sản phẩm này"></button>
+        </div>
+        <div class="row g-2">
+            <div class="col-12">
+                <input type="text" class="form-control form-control-sm" name="item_sku" placeholder="SKU sản phẩm của MangoTee" required>
+            </div>
+            <div class="col-6">
+                <select class="form-select form-select-sm" name="front_design_id">
+                    <option value="">-- Chọn Design mặt trước --</option>
+                    </select>
+            </div>
+            <div class="col-6">
+                 <select class="form-select form-select-sm" name="back_design_id">
+                    <option value="">-- Chọn Design mặt sau --</option>
+                    </select>
+            </div>
+            <div class="col-4">
+                <input type="number" class="form-control form-control-sm" name="item_quantity" value="1" min="1" placeholder="SL">
+            </div>
+        </div>
+    </div>
+</template>
+
+<script>
+// Logic cho popup này được gói gọn trong một hàm để tránh xung đột
+(function() {
+    let orderData = null;
+    let allDesigns = []; // Biến lưu trữ toàn bộ design
+
+    const form = document.getElementById('mangoteeFulfillForm');
+    const itemsContainer = document.getElementById('mangotee-line-items-container');
+    const itemTemplate = document.getElementById('mangotee-item-template');
+    const submitBtn = document.getElementById('submit-mangotee-fulfillment-btn');
+    
+    // Hàm render một dòng sản phẩm
+    function renderItem(item = {}) {
+        const clone = itemTemplate.content.cloneNode(true);
+        const itemDiv = clone.querySelector('.mangotee-item');
+        
+        // Điền các giá trị có sẵn
+        itemDiv.querySelector('[name="item_sku"]').value = item.sku || '';
+        itemDiv.querySelector('[name="item_quantity"]').value = item.quantity || 1;
+        
+        // Đổ danh sách design vào 2 ô select
+        const frontSelect = itemDiv.querySelector('[name="front_design_id"]');
+        const backSelect = itemDiv.querySelector('[name="back_design_id"]');
+        allDesigns.forEach(design => {
+            frontSelect.innerHTML += `<option value="${design.id}" data-url="${design.image_url}">${design.name}</option>`;
+            backSelect.innerHTML += `<option value="${design.id}" data-url="${design.image_url}">${design.name}</option>`;
+        });
+
+        // Tự động chọn design nếu SKU của sản phẩm khớp với tên design
+        const matchedDesign = allDesigns.find(d => d.name === item.sku);
+        if (matchedDesign) {
+            frontSelect.value = matchedDesign.id;
+        }
+
+        itemsContainer.appendChild(clone);
+    }
+
+    // Lắng nghe sự kiện khi template được tải xong
+    document.addEventListener('fulfillTemplateLoaded', async (e) => {
+        const orderId = e.detail.orderId;
+
+        try {
+            // Lấy dữ liệu cần thiết từ backend
+            const [detailsRes, designsRes] = await Promise.all([
+                fetch(`/orders/get_fulfillment_details/${orderId}`),
+                fetch(`/designs/api/all`) // Cần tạo route này
+            ]);
+
+            const detailsData = await detailsRes.json();
+            const designsData = await designsRes.json();
+
+            if (!detailsData.success || !designsData.success) {
+                throw new Error(detailsData.message || designsData.message || 'Lỗi tải dữ liệu.');
+            }
+            
+            orderData = detailsData;
+            allDesigns = designsData.designs;
+
+            // Điền thông tin giao hàng
+            form.elements['shipping_name'].value = orderData.order_details.shipping_address.name;
+            form.elements['shipping_address1'].value = orderData.order_details.shipping_address.address1;
+            form.elements['shipping_phone'].value = orderData.order_details.shipping_address.phone;
+            form.elements['shipping_email'].value = orderData.order_details.shipping_address.email;
+            form.elements['shipping_city'].value = orderData.order_details.shipping_address.city;
+            form.elements['shipping_zip'].value = orderData.order_details.shipping_address.zip;
+
+            // Render các sản phẩm từ đơn hàng gốc
+            itemsContainer.innerHTML = '';
+            orderData.order_details.line_items.forEach(renderItem);
+
+        } catch (error) {
+            itemsContainer.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        }
+    });
+
+    // Xử lý nút Thêm sản phẩm
+    document.getElementById('mangotee-add-item-btn').addEventListener('click', () => {
+        renderItem();
+    });
+
+    // Xử lý nút Xóa sản phẩm
+    itemsContainer.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-item-btn')) {
+            e.target.closest('.mangotee-item').remove();
+        }
+    });
+
+    // Xử lý submit
+    submitBtn.addEventListener('click', async function() {
+        if (!orderData) return;
+        
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang gửi...';
+
+        const lineItemsPayload = [];
+        const itemElements = itemsContainer.querySelectorAll('.mangotee-item');
+        
+        itemElements.forEach(itemEl => {
+            const sku = itemEl.querySelector('[name="item_sku"]').value;
+            const quantity = parseInt(itemEl.querySelector('[name="item_quantity"]').value, 10);
+            const frontSelect = itemEl.querySelector('[name="front_design_id"]');
+            const backSelect = itemEl.querySelector('[name="back_design_id"]');
+            const frontDesignUrl = frontSelect.options[frontSelect.selectedIndex]?.dataset.url;
+            const backDesignUrl = backSelect.options[backSelect.selectedIndex]?.dataset.url;
+            
+            const print_areas = {};
+            if (frontDesignUrl) print_areas.front = frontDesignUrl;
+            if (backDesignUrl) print_areas.back = backDesignUrl;
+
+            if (sku && quantity > 0 && Object.keys(print_areas).length > 0) {
+                lineItemsPayload.push({
+                    sku: sku,
+                    quantity: quantity,
+                    print_areas: print_areas
+                });
+            }
+        });
+        
+        const finalPayload = {
+            reference_id: orderData.order_details.reference_id,
+            shipping_address: {
+                name: form.elements['shipping_name'].value,
+                address1: form.elements['shipping_address1'].value,
+                phone: form.elements['shipping_phone'].value,
+                email: form.elements['shipping_email'].value,
+                city: form.elements['shipping_city'].value,
+                zip: form.elements['shipping_zip'].value,
+                state: 'Hanoi',
+                country: 'VN'
+            },
+            line_items: lineItemsPayload
+        };
+
+        try {
+            const response = await fetch(`/orders/process_fulfillment/${orderData.order_details.reference_id.split('_').pop()}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    api_key: orderData.api_key,
+                    payload: finalPayload
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.message);
+            
+            // Sử dụng hàm showToast toàn cục nếu có
+            if (typeof showToast === 'function') {
+                showToast(data.message, 'success');
+            } else {
+                alert(data.message);
+            }
+            bootstrap.Modal.getInstance(document.getElementById('fulfillModal')).hide();
+
+        } catch (error) {
+            if (typeof showToast === 'function') {
+                showToast(error.message, 'danger');
+            } else {
+                alert(error.message);
+            }
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send-check-fill"></i> Gửi Fulfill';
+        }
+    });
+})();
+</script>

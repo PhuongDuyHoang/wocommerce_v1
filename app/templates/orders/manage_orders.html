@@ -44,36 +44,11 @@
     #refund-summary-list li { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
     #refund-history-table th, #refund-history-table td { font-size: 0.9em; }
 
-    /* === START: CSS CHO POPUP FULFILL === */
+    /* === START: CSS CHO KHUNG POPUP FULFILL === */
     #fulfillModal .modal-dialog {
-        max-width: 800px;
+        max-width: 900px; /* Tăng độ rộng cho giao diện phức tạp hơn */
     }
-    .fulfill-item-row {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 0.75rem;
-        border-bottom: 1px solid #dee2e6;
-    }
-    .fulfill-item-row:last-child {
-        border-bottom: none;
-    }
-    .fulfill-design-img {
-        width: 60px;
-        height: 60px;
-        object-fit: contain;
-        border: 1px solid #eee;
-        border-radius: 4px;
-        background-color: #f8f9fa;
-    }
-    .fulfill-item-details {
-        flex-grow: 1;
-    }
-    .fulfill-item-row.no-design {
-        background-color: #fff3cd;
-        opacity: 0.7;
-    }
-    /* === END: CSS CHO POPUP FULFILL === */
+    /* === END: CSS CHO KHUNG POPUP FULFILL === */
 </style>
 {% endblock %}
 
@@ -108,7 +83,7 @@
                 <div class="text-center d-flex gap-1 justify-content-center flex-wrap">
                     <button class="btn btn-sm btn-outline-info refund-btn" data-order-id="{{ order.id }}" data-wc-order-id="{{ order.wc_order_id }}" title="Xử lý hoàn tiền"><i class="bi bi-currency-exchange"></i></button>
                     <button class="btn btn-sm btn-outline-primary fulfill-btn" data-order-id="{{ order.id }}" title="Fulfill Đơn hàng"><i class="bi bi-send-fill"></i></button>
-                    </div>
+                </div>
             {% else %}<div title="{{ order[column.key] or '' }}">{{ order[column.key] or '' }}</div>{% endif %}</td>{% endif %}{% endfor %}</tr>{% else %}<tr><td colspan="{{ (columns_config | selectattr('visible') | rejectattr('key', 'equalto', 'image') | list | length) - (1 if not (current_user.is_super_admin() or current_user.is_admin()) and columns_config | selectattr('key', 'equalto', 'owner_username') | selectattr('visible') | list else 0) }}" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào phù hợp với bộ lọc.</td></tr>{% endfor %}</tbody>
     </table>
 </div>
@@ -138,44 +113,13 @@
 <div class="modal fade" id="fulfillModal" tabindex="-1" aria-labelledby="fulfillModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="fulfillModalLabel">Fulfill Đơn hàng #<span id="fulfill-wc-order-id"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="fulfill-loader" class="text-center py-5">
-                    <div class="spinner-border text-primary"></div>
-                    <p class="mt-2">Đang chuẩn bị dữ liệu Fulfill...</p>
+            <div id="fulfill-modal-content">
+                <div class="modal-body text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Đang tải giao diện...</p>
                 </div>
-
-                <div id="fulfill-content" class="d-none">
-                    <form id="fulfillForm">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6>Thông tin giao hàng</h6>
-                                <div class="mb-2"><input type="text" class="form-control" name="shipping_name" placeholder="Tên khách hàng" required></div>
-                                <div class="mb-2"><input type="text" class="form-control" name="shipping_address1" placeholder="Địa chỉ" required></div>
-                                <div class="mb-2"><input type="text" class="form-control" name="shipping_phone" placeholder="Số điện thoại" required></div>
-                                <div class="mb-2"><input type="email" class="form-control" name="shipping_email" placeholder="Email" required></div>
-                                <div class="row g-2">
-                                    <div class="col-sm-6"><input type="text" class="form-control" name="shipping_city" placeholder="Thành phố" required></div>
-                                    <div class="col-sm-6"><input type="text" class="form-control" name="shipping_zip" placeholder="Mã ZIP" required></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <h6>Sản phẩm</h6>
-                                <div id="fulfill-line-items-container">
-                                    </div>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                <button type="button" class="btn btn-primary" id="submit-fulfillment-btn">
-                    <i class="bi bi-send-check-fill"></i> Gửi Fulfill
-                </button>
             </div>
         </div>
     </div>
@@ -185,6 +129,7 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Toàn bộ các hàm và logic gốc của bạn được giữ nguyên ở đây
     function showToast(message, category = 'info') {
         const toastContainer = document.querySelector('.toast-container');
         if (!toastContainer) return;
@@ -312,13 +257,12 @@ document.addEventListener('DOMContentLoaded', function() {
         currentOrderIdForRefund = null;
     }
     
-    // === START: GỘP CÁC EVENT LISTENER VÀO CHUNG MỘT VÒNG LẶP ===
+    // Gộp các event listener vào chung một vòng lặp
     document.querySelector('body').addEventListener('click', async function(e) {
         const refundBtn = e.target.closest('.refund-btn');
         const refundActionBtn = e.target.closest('.refund-action-btn');
         const fulfillBtn = e.target.closest('.fulfill-btn');
 
-        // Refund logic
         if (refundBtn) {
             currentOrderIdForRefund = refundBtn.dataset.orderId;
             document.getElementById('refund-wc-order-id').textContent = refundBtn.dataset.wcOrderId;
@@ -381,63 +325,41 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Fulfill logic
+        // === START: SỬA LỖI - LOGIC FULFILL ĐÃ TÁI CẤU TRÚC ===
         if (fulfillBtn) {
             const orderId = fulfillBtn.dataset.orderId;
             const fulfillModalEl = document.getElementById('fulfillModal');
             const fulfillModal = bootstrap.Modal.getInstance(fulfillModalEl) || new bootstrap.Modal(fulfillModalEl);
-            const fulfillLoader = document.getElementById('fulfill-loader');
-            const fulfillContent = document.getElementById('fulfill-content');
+            const fulfillModalContent = document.getElementById('fulfill-modal-content');
             
-            fulfillContent.classList.add('d-none');
-            fulfillLoader.classList.remove('d-none');
-            fulfillLoader.innerHTML = '<div class="spinner-border text-primary"></div><p class="mt-2">Đang chuẩn bị dữ liệu Fulfill...</p>';
+            fulfillModalContent.innerHTML = `
+                <div class="modal-body text-center p-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 mb-0">Đang tải giao diện Fulfill...</p>
+                </div>
+            `;
             fulfillModal.show();
-            
+
             try {
-                const response = await fetch(`/orders/get_fulfillment_details/${orderId}`);
-                const data = await response.json();
-                if (!response.ok || !data.success) throw new Error(data.message || 'Lỗi không xác định');
+                const provider = 'mangotee'; // Hiện tại chỉ có mangotee
                 
-                window.fulfillData = data;
-                document.getElementById('fulfill-wc-order-id').textContent = data.order_details.reference_id.split('_').pop();
+                // Fetch template HTML của nhà cung cấp
+                const templateResponse = await fetch(`/orders/get_fulfillment_template/${provider}`);
+                if (!templateResponse.ok) throw new Error('Không thể tải giao diện fulfill.');
+                const templateHtml = await templateResponse.text();
+
+                fulfillModalContent.innerHTML = templateHtml;
                 
-                const fulfillForm = document.getElementById('fulfillForm');
-                fulfillForm.elements['shipping_name'].value = data.order_details.shipping_address.name;
-                fulfillForm.elements['shipping_address1'].value = data.order_details.shipping_address.address1;
-                fulfillForm.elements['shipping_phone'].value = data.order_details.shipping_address.phone;
-                fulfillForm.elements['shipping_email'].value = data.order_details.shipping_address.email;
-                fulfillForm.elements['shipping_city'].value = data.order_details.shipping_address.city;
-                fulfillForm.elements['shipping_zip'].value = data.order_details.shipping_address.zip;
-                
-                const itemsContainer = document.getElementById('fulfill-line-items-container');
-                itemsContainer.innerHTML = '';
-                let canSubmit = false;
-                data.order_details.line_items.forEach(item => {
-                    const hasDesign = item.design_image_url;
-                    if (hasDesign) canSubmit = true;
-                    const itemHtml = `
-                        <div class="fulfill-item-row ${!hasDesign ? 'no-design' : ''}">
-                            <img src="${item.design_image_url || 'https://via.placeholder.com/60'}" class="fulfill-design-img">
-                            <div class="fulfill-item-details">
-                                <small class="fw-bold d-block">${item.product_name}</small>
-                                <small>SKU: <strong>${item.sku}</strong> | SL: ${item.quantity}</small>
-                                ${!hasDesign ? '<small class="text-danger d-block">Lỗi: Không tìm thấy design cho SKU này.</small>' : ''}
-                            </div>
-                        </div>
-                    `;
-                    itemsContainer.innerHTML += itemHtml;
-                });
-                
-                document.getElementById('submit-fulfillment-btn').disabled = !canSubmit;
-                fulfillLoader.classList.add('d-none');
-                fulfillContent.classList.remove('d-none');
+                // Gửi sự kiện báo cho script trong template biết nó đã được tải và truyền ID đơn hàng
+                const event = new CustomEvent('fulfillTemplateLoaded', { detail: { orderId: orderId } });
+                document.dispatchEvent(event);
+
             } catch (error) {
-                fulfillLoader.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+                fulfillModalContent.innerHTML = `<div class="modal-body"><div class="alert alert-danger mb-0">${error.message}</div></div>`;
             }
         }
+        // === END: SỬA LỖI ===
     });
-    // === END: GỘP CÁC EVENT LISTENER ===
 
     refundAmountInput.addEventListener('input', function() {
         const amount = parseFloat(this.value) || 0;
@@ -452,54 +374,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     refundModalElement.addEventListener('hidden.bs.modal', resetRefundModal);
-
-    document.getElementById('submit-fulfillment-btn').addEventListener('click', async function() {
-        if (!window.fulfillData) return;
-
-        const btn = this;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang gửi...';
-
-        const orderId = window.fulfillData.order_details.reference_id.split('_').pop();
-        const fulfillForm = document.getElementById('fulfillForm');
-        const updatedShippingAddress = {
-            name: fulfillForm.elements['shipping_name'].value,
-            address1: fulfillForm.elements['shipping_address1'].value,
-            phone: fulfillForm.elements['shipping_phone'].value,
-            email: fulfillForm.elements['shipping_email'].value,
-            city: fulfillForm.elements['shipping_city'].value,
-            zip: fulfillForm.elements['shipping_zip'].value,
-            state: 'Hanoi',
-            country: 'VN'
-        };
-        const payloadToSend = {
-            ...window.fulfillData.order_details,
-            shipping_address: updatedShippingAddress
-        };
-
-        try {
-            const response = await fetch(`/orders/process_fulfillment/${orderId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    api_key: window.fulfillData.api_key,
-                    payload: payloadToSend
-                })
-            });
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Lỗi không xác định');
-            }
-            showToast(data.message, 'success');
-            const fulfillModal = bootstrap.Modal.getInstance(document.getElementById('fulfillModal'));
-            fulfillModal.hide();
-        } catch (error) {
-            showToast(error.message, 'danger');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-send-check-fill"></i> Gửi Fulfill';
-        }
-    });
 });
 </script>
 {% endblock %}

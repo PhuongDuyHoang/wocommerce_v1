@@ -13,12 +13,13 @@ from app.services.fulfillment_service import MangoTeeService
 from . import orders_bp
 from app import db
 from app.models import WooCommerceOrder, WooCommerceStore, Setting, AppUser, OrderLineItem
-from app.services import get_visible_orders_query, get_visible_stores_query # Sửa ở đây
+from app.services import get_visible_orders_query, get_visible_stores_query
 
 
 @orders_bp.route('/')
 @login_required
 def manage_all_orders():
+    # ... (Nội dung route này giữ nguyên, không thay đổi)
     page = request.args.get('page', 1, type=int)
     base_query = db.session.query(WooCommerceOrder, WooCommerceStore, AppUser.username.label('owner_username'))\
         .join(WooCommerceStore, WooCommerceOrder.store_id == WooCommerceStore.id)\
@@ -83,9 +84,7 @@ def manage_all_orders():
         order_obj.owner_username = owner_username_str or 'Chưa gán'
         orders_with_details.append(order_obj)
 
-    # === START: SỬA LỖI - Gọi đúng hàm get_visible_stores_query ===
     stores_for_filter = get_visible_stores_query(current_user).order_by(WooCommerceStore.name).all()
-    # === END: SỬA LỖI ===
 
     admins_for_filter, users_for_filter = [], []
     if current_user.is_super_admin():
@@ -119,7 +118,6 @@ def manage_all_orders():
 @orders_bp.route('/update_note/<int:order_id>', methods=['POST'])
 @login_required
 def update_note(order_id):
-    # ... (Nội dung route này giữ nguyên)
     order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
     data = request.get_json()
     if data is None or 'note' not in data: return jsonify({'success': False, 'message': 'Dữ liệu không hợp lệ'}), 400
@@ -131,7 +129,6 @@ def update_note(order_id):
 @orders_bp.route('/update_status/<int:order_id>', methods=['POST'])
 @login_required
 def update_status(order_id):
-    # ... (Nội dung route này giữ nguyên)
     order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
     data = request.get_json()
     if data is None or 'status' not in data: return jsonify({'success': False, 'message': 'Dữ liệu không hợp lệ'}), 400
@@ -154,7 +151,6 @@ def update_status(order_id):
 @orders_bp.route('/get_refund_details/<int:order_id>')
 @login_required
 def get_refund_details(order_id):
-    # ... (Nội dung route này giữ nguyên)
     order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
     store = order.store
     try:
@@ -187,7 +183,6 @@ def get_refund_details(order_id):
 @orders_bp.route('/process_refund/<int:order_id>', methods=['POST'])
 @login_required
 def process_refund(order_id):
-    # ... (Nội dung route này giữ nguyên)
     order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
     store = order.store
     data = request.get_json()
@@ -217,14 +212,16 @@ def process_refund(order_id):
 @orders_bp.route('/get_fulfillment_details/<int:order_id>', methods=['GET'])
 @login_required
 def get_fulfillment_details(order_id):
-    # ... (Nội dung route này giữ nguyên)
     order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
+    
     admin_user = current_user if current_user.is_admin() or current_user.is_super_admin() else current_user.parent
     if not admin_user:
         return jsonify({'success': False, 'message': 'Không tìm thấy tài khoản admin quản lý.'}), 404
+        
     mangotee_setting = FulfillmentSetting.query.filter_by(user_id=admin_user.id, provider_name='mangotee').first()
     if not mangotee_setting or not mangotee_setting.api_key:
         return jsonify({'success': False, 'message': 'Admin quản lý chưa cấu hình API Key cho MangoTee.'}), 400
+
     line_items_with_design = []
     for item in order.line_items:
         design = Design.query.filter_by(name=item.sku).first()
@@ -234,6 +231,7 @@ def get_fulfillment_details(order_id):
             'product_name': item.product_name,
             'design_image_url': design.image_url if design else None,
         })
+
     data_to_return = {
         'success': True,
         'provider': 'mangotee',
@@ -255,21 +253,24 @@ def get_fulfillment_details(order_id):
     }
     return jsonify(data_to_return)
 
-
+# === START: NÂNG CẤP ROUTE PROCESS FULFILLMENT ===
 @orders_bp.route('/process_fulfillment/<int:order_id>', methods=['POST'])
 @login_required
 def process_fulfillment(order_id):
-    # ... (Nội dung route này giữ nguyên)
     data = request.json
     if not data:
         return jsonify({'success': False, 'message': 'Dữ liệu không hợp lệ'}), 400
+
     api_key = data.get('api_key')
     payload = data.get('payload')
+
     if not api_key or not payload:
         return jsonify({'success': False, 'message': 'Thiếu API Key hoặc payload.'}), 400
+        
     try:
         mangotee_service = MangoTeeService(api_key=api_key)
         success, message = mangotee_service.create_order(payload)
+
         if success:
             order = db.session.get(WooCommerceOrder, order_id)
             if order:
@@ -279,8 +280,28 @@ def process_fulfillment(order_id):
             return jsonify({'success': True, 'message': 'Đã gửi đơn hàng đến MangoTee thành công!'})
         else:
             return jsonify({'success': False, 'message': message}), 400
+
     except ValueError as e:
         return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
         current_app.logger.error(f"Fulfillment processing error for order {order_id}: {e}")
         return jsonify({'success': False, 'message': f'Lỗi không xác định: {e}'}), 500
+# === END: NÂNG CẤP ROUTE PROCESS FULFILLMENT ===
+
+
+# === START: THÊM ROUTE MỚI ĐỂ LẤY FULFILLMENT TEMPLATE ===
+@orders_bp.route('/get_fulfillment_template/<provider_name>', methods=['GET'])
+@login_required
+def get_fulfillment_template(provider_name):
+    """
+    Render và trả về HTML fragment cho một giao diện fulfill cụ thể.
+    """
+    # Logic xác thực tên nhà cung cấp để tránh lỗi path traversal
+    if provider_name not in ['mangotee']: # Thêm tên nhà cung cấp mới vào đây trong tương lai
+        abort(404, "Nhà cung cấp không hợp lệ.")
+        
+    template_path = f'orders/fulfillment_modals/{provider_name}.html'
+    
+    # Trả về HTML đã được render
+    return render_template(template_path)
+# === END: THÊM ROUTE MỚI ĐỂ LẤY FULFILLMENT TEMPLATE ===
