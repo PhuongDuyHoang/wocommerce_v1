@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+    .design-image {
+        width: 100px;
+        height: 100px;
+        object-fit: contain;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 5px;
+    }
+    .action-buttons .btn {
+        width: 38px; /* Đảm bảo các nút có chiều rộng bằng nhau */
+    }
+    #bulk-actions-container {
+        display: none; /* Mặc định ẩn */
+    }
+    .form-error {
+        color: #dc3545;
+        font-size: 0.875em;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <div class="row align-items-center g-2">
+            <div class="col-md-4">
+                <form action="{{ url_for('designs.manage') }}" method="GET">
+                    <div class="input-group">
+                        <input type="text" class="form-control" name="search_query" placeholder="Tìm tên design..." value="{{ search_query or '' }}">
+                        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+                    </div>
+                </form>
+            </div>
+            <div class="col-md-8 text-md-end">
+                <div id="bulk-actions-container" class="btn-group me-2" role="group">
+                    <button type="button" class="btn btn-sm btn-danger" id="delete-selected-btn">
+                        <i class="bi bi-trash-fill"></i> Xóa đã chọn (<span id="selected-count">0</span>)
+                    </button>
+                </div>
+                <button class="btn btn-primary" id="create-design-btn">
+                    <i class="bi bi-plus-circle-fill"></i> Thêm Design
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 5%;" class="text-center"><input class="form-check-input" type="checkbox" id="select-all-checkbox"></th>
+                        <th style="width: 50%;">Tên Design</th>
+                        <th style="width: 25%;" class="text-center">Hình ảnh</th>
+                        <th style="width: 20%;" class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for design in designs.items %}
+                    <tr id="design-row-{{ design.id }}">
+                        <td class="text-center"><input class="form-check-input row-checkbox" type="checkbox" value="{{ design.id }}"></td>
+                        <td>{{ design.name }}</td>
+                        <td class="text-center">
+                            <img src="{{ design.image_url }}" alt="{{ design.name }}" class="design-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <a href="{{ design.image_url }}" target="_blank" class="d-block mt-1">Link</a>
+                        </td>
+                        <td class="text-center action-buttons">
+                            <button class="btn btn-sm btn-outline-secondary edit-btn" 
+                                    data-id="{{ design.id }}" 
+                                    title="Chỉnh sửa">
+                                <i class="bi bi-pencil-fill"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-btn" 
+                                    data-id="{{ design.id }}" 
+                                    title="Xóa">
+                                <i class="bi bi-trash-fill"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">Không có design nào.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if designs.pages > 1 %}
+    <div class="card-footer">
+        <nav aria-label="Design navigation">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item {% if not designs.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=designs.prev_num, search_query=search_query) }}">&laquo;</a></li>
+                {% for page_num in designs.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == designs.page %}active{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=page_num, search_query=search_query) }}">{{ page_num }}</a></li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not designs.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=designs.next_num, search_query=search_query) }}">&raquo;</a></li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal fade" id="designModal" tabindex="-1" aria-labelledby="designModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="designModalLabel">Thêm Design mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="designForm" novalidate>
+                <div class="modal-body">
+                    <input type="hidden" id="designId" name="design_id">
+                    {{ form.hidden_tag() }} {# CSRF Token #}
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control", id="designName") }}
+                        <div id="name-error" class="form-error"></div>
+                    </div>
+                    <div class="mb-3">
+                        {{ form.image_url.label(class="form-label") }}
+                        {{ form.image_url(class="form-control", id="designImageUrl") }}
+                        <div id="image_url-error" class="form-error"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="submitDesignBtn">Tạo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const designModalEl = document.getElementById('designModal');
+    const designModal = new bootstrap.Modal(designModalEl);
+    const designForm = document.getElementById('designForm');
+    const modalLabel = document.getElementById('designModalLabel');
+    const submitBtn = document.getElementById('submitDesignBtn');
+    const designIdInput = document.getElementById('designId');
+
+    // Mở modal để thêm mới
+    document.getElementById('create-design-btn').addEventListener('click', function() {
+        modalLabel.textContent = 'Thêm Design mới';
+        submitBtn.textContent = 'Tạo';
+        designForm.action = "{{ url_for('designs.add') }}";
+        designIdInput.value = '';
+        designForm.reset();
+        clearErrors();
+        designModal.show();
+    });
+
+    // Mở modal để chỉnh sửa
+    document.querySelector('tbody').addEventListener('click', async function(e) {
+        if (e.target.closest('.edit-btn')) {
+            const btn = e.target.closest('.edit-btn');
+            const designId = btn.dataset.id;
+            
+            clearErrors();
+            
+            // Lấy dữ liệu hiện tại của design
+            const response = await fetch(`/designs/details/${designId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                modalLabel.textContent = 'Chỉnh sửa Design';
+                submitBtn.textContent = 'Lưu thay đổi';
+                designForm.action = `/designs/edit/${designId}`;
+                document.getElementById('designName').value = data.name;
+                document.getElementById('designImageUrl').value = data.image_url;
+                designIdInput.value = designId;
+                designModal.show();
+            } else {
+                alert('Không thể tải dữ liệu design.');
+            }
+        }
+    });
+
+    // Xử lý submit form (Thêm/Sửa)
+    designForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        clearErrors();
+        
+        const response = await fetch(this.action, {
+            method: 'POST',
+            body: new FormData(this)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            designModal.hide();
+            window.location.reload();
+        } else if (data.errors) {
+            for (const field in data.errors) {
+                const errorDiv = document.getElementById(`${field}-error`);
+                if (errorDiv) {
+                    errorDiv.textContent = data.errors[field][0];
+                }
+            }
+        }
+    });
+
+    function clearErrors() {
+        document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    }
+
+    // Xóa từng design
+    document.querySelector('tbody').addEventListener('click', async function(e) {
+        if (e.target.closest('.delete-btn')) {
+            const btn = e.target.closest('.delete-btn');
+            const designId = btn.dataset.id;
+
+            if (confirm('Bạn có chắc chắn muốn xóa design này?')) {
+                const response = await fetch(`/designs/delete/${designId}`, { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById(`design-row-${designId}`).remove();
+                } else {
+                    alert('Xóa thất bại.');
+                }
+            }
+        }
+    });
+
+    // Xử lý chọn và xóa hàng loạt
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+    const bulkActionsContainer = document.getElementById('bulk-actions-container');
+    const selectedCountSpan = document.getElementById('selected-count');
+    const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+
+    function updateBulkActionsVisibility() {
+        const checkedCount = document.querySelectorAll('.row-checkbox:checked').length;
+        if (checkedCount > 0) {
+            bulkActionsContainer.style.display = 'inline-block';
+            selectedCountSpan.textContent = checkedCount;
+        } else {
+            bulkActionsContainer.style.display = 'none';
+        }
+    }
+
+    selectAllCheckbox.addEventListener('change', function() {
+        rowCheckboxes.forEach(cb => cb.checked = this.checked);
+        updateBulkActionsVisibility();
+    });
+
+    rowCheckboxes.forEach(cb => {
+        cb.addEventListener('change', updateBulkActionsVisibility);
+    });
+
+    deleteSelectedBtn.addEventListener('click', async function() {
+        const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+        
+        if (selectedIds.length === 0) return;
+
+        if (confirm(`Bạn có chắc muốn xóa vĩnh viễn ${selectedIds.length} design đã chọn?`)) {
+            const response = await fetch("{{ url_for('designs.delete_selected') }}", {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ids: selectedIds })
+            });
+            const data = await response.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Lỗi khi xóa: ' + data.message);
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

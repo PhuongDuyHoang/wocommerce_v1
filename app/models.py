@@ -2,7 +2,7 @@
 from . import db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 class AppUser(UserMixin, db.Model):
@@ -27,6 +27,9 @@ class AppUser(UserMixin, db.Model):
     telegram_template_user_test = db.Column(db.Text, nullable=True)
     stores = db.relationship('WooCommerceStore', backref='owner', lazy='dynamic', cascade="all, delete-orphan")
     children = db.relationship('AppUser', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
+    # === START: Thêm relationship tới Design ===
+    designs = db.relationship('Design', backref='owner', lazy='dynamic', cascade="all, delete-orphan")
+    # === END: Thêm relationship tới Design ===
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
     def is_super_admin(self): return self.role == 'super_admin'
@@ -41,7 +44,6 @@ class WooCommerceStore(db.Model):
     consumer_secret = db.Column(db.String(255), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('app_user.id'), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    # === SỬA LỖI: Thêm timezone=True để lưu múi giờ UTC ===
     last_checked = db.Column(db.DateTime(timezone=True), default=None, nullable=True)
     note = db.Column(db.Text, nullable=True)
     orders = db.relationship('WooCommerceOrder', backref='store', lazy='dynamic', cascade="all, delete-orphan")
@@ -57,7 +59,7 @@ class WooCommerceOrder(db.Model):
     total = db.Column(db.Float, nullable=False)
     customer_name = db.Column(db.String(255), nullable=True)
     payment_method_title = db.Column(db.String(100), nullable=True)
-    order_created_at = db.Column(db.DateTime, nullable=False, index=True)
+    order_created_at = db.Column(db.DateTime, nullable=False, index=True, default=lambda: datetime.now(timezone.utc))
     order_modified_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
     shipping_total = db.Column(db.Float, nullable=True)
     customer_note = db.Column(db.Text, nullable=True)
@@ -112,7 +114,7 @@ class BackgroundTask(db.Model):
     name = db.Column(db.String(128), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('app_user.id'))
     user = db.relationship('AppUser')
-    start_time = db.Column(db.DateTime, default=datetime.utcnow)
+    start_time = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     end_time = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), default='queued', index=True)
     progress = db.Column(db.Integer, default=0)
@@ -120,3 +122,16 @@ class BackgroundTask(db.Model):
     log = db.Column(db.Text)
     requested_cancellation = db.Column(db.Boolean, default=False)
     def __repr__(self): return f'<Task {self.name} {self.id}>'
+
+# === START: THÊM MODEL MỚI CHO DESIGN ===
+class Design(db.Model):
+    __tablename__ = 'design'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), index=True, nullable=False)
+    image_url = db.Column(db.String(1000), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('app_user.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f'<Design {self.name}>'
+# === END: THÊM MODEL MỚI CHO DESIGN ===

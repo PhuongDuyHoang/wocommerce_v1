@@ -2,7 +2,9 @@
 
 from flask import render_template, request, jsonify, abort, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import or_, and_, desc
+# === START: SỬA LỖI - Thêm `select` để loại bỏ SAWarning ===
+from sqlalchemy import or_, and_, desc, select
+# === END: SỬA LỖI ===
 from woocommerce import API
 from decimal import Decimal, ROUND_DOWN
 import json
@@ -22,7 +24,10 @@ def manage_all_orders():
         .outerjoin(AppUser, WooCommerceStore.user_id == AppUser.id)
 
     visible_orders_subquery = get_visible_orders_query(current_user).with_entities(WooCommerceOrder.id).subquery()
-    base_query = base_query.filter(WooCommerceOrder.id.in_(visible_orders_subquery))
+    # === START: SỬA LỖI - Bọc subquery trong select() để loại bỏ SAWarning ===
+    base_query = base_query.filter(WooCommerceOrder.id.in_(select(visible_orders_subquery)))
+    # === END: SỬA LỖI ===
+
 
     search_query = request.args.get('search_query')
     selected_store_id = request.args.get('store_id', type=int)
@@ -171,11 +176,7 @@ def get_refund_details(order_id):
         refunds_response.raise_for_status()
         refunds_data = refunds_response.json()
 
-        # === START: SỬA LỖI - Đọc đúng trường 'amount' thay vì 'total' ===
-        # Số tiền hoàn lại là một số dương trong đối tượng refund
         total_refunded = sum(Decimal(r.get('amount', '0')) for r in refunds_data)
-        # === END: SỬA LỖI ===
-
         original_total = Decimal(order_data.get('total', '0'))
         refundable_amount = original_total - total_refunded
 
@@ -186,15 +187,13 @@ def get_refund_details(order_id):
             'transaction_id': order_data.get('transaction_id', ''),
             'total_amount': str(original_total),
             'currency': order_data.get('currency', 'USD'),
-            'total_refunded': str(total_refunded), # Gửi đi tổng số dương
+            'total_refunded': str(total_refunded),
             'refundable_amount': str(refundable_amount.quantize(Decimal('0.01'), rounding=ROUND_DOWN)),
             'refunds': [
                 {
                     'id': r.get('id'),
                     'reason': r.get('reason') or 'Không có lý do',
-                    # === START: SỬA LỖI - Gửi đúng trường 'amount' cho frontend ===
                     'amount': r.get('amount', '0'),
-                    # === END: SỬA LỖI ===
                     'date': r.get('date_created')
                 } for r in refunds_data
             ]
