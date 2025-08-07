@@ -149,7 +149,6 @@
             display: none;
         }
 
-        /* === START: CSS CHO MENU POP-OUT KHI SIDEBAR THU GỌN === */
         .sidebar-popover .popover-body {
             padding: 0;
         }
@@ -160,7 +159,7 @@
             list-style: none;
             padding: 0.5rem 0;
             margin: 0;
-            min-width: 200px; /* Đảm bảo menu con đủ rộng */
+            min-width: 200px;
         }
         .popover-menu-list .nav-link {
             padding: 0.5rem 1.5rem;
@@ -171,11 +170,9 @@
         .popover-menu-list .nav-link:hover {
             background-color: #e9ecef;
         }
-        /* Ẩn mũi tên mặc định của bootstrap collapse khi sidebar thu gọn */
         .sidebar.collapsed .nav-link[data-bs-toggle="collapse"]::after {
             display: none;
         }
-        /* === END: CSS CHO MENU POP-OUT === */
     </style>
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -183,7 +180,7 @@
 <nav id="sidebarMenu" class="sidebar">
     <div class="sidebar-header">
         <a class="navbar-brand d-flex align-items-center text-dark text-decoration-none" href="{{ url_for('main.dashboard') }}">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/WooCommerce_logo.svg/1200px-WooCommerce_logo.svg.png" alt="Logo" class="sidebar-brand-icon">
+            <img src="https://i.imgur.com/832g8k4.png" alt="Logo" class="sidebar-brand-icon">
             <span class="sidebar-brand-text ms-2 fs-5 fw-bold">PTECH</span>
         </a>
     </div>
@@ -279,18 +276,18 @@
 document.addEventListener('DOMContentLoaded', function() {
     const body = document.body;
     const sidebar = document.getElementById('sidebarMenu');
-    const mainContent = document.querySelector('.main-content');
     const sidebarToggle = document.getElementById('sidebarToggle');
-    let openPopover = null;
+    
+    // === START: SỬA LỖI - VIẾT LẠI HOÀN TOÀN LOGIC MENU POP-OUT ===
+    let openPopoverInstance = null;
 
     function applySidebarState(isCollapsed) {
         body.classList.toggle('sidebar-collapsed', isCollapsed);
         if (sidebar) sidebar.classList.toggle('collapsed', isCollapsed);
         
-        // Đóng popover đang mở nếu có khi thay đổi trạng thái sidebar
-        if (openPopover) {
-            openPopover.hide();
-            openPopover = null;
+        // Luôn đóng popover khi thay đổi trạng thái sidebar
+        if (openPopoverInstance) {
+            openPopoverInstance.hide();
         }
     }
 
@@ -299,7 +296,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     setTimeout(() => {
         if (body) body.classList.add('enable-transition');
-    }, 10);
+    }, 50);
 
     if (sidebarToggle) {
         sidebarToggle.addEventListener('click', function() {
@@ -317,12 +314,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return toast;
     });
 
-    // === START: JAVASCRIPT CHO MENU POP-OUT ===
     const parentMenuItems = document.querySelectorAll('.sidebar .nav-link[data-bs-toggle="collapse"]');
     
     parentMenuItems.forEach(parentLink => {
         const popover = new bootstrap.Popover(parentLink, {
-            trigger: 'manual', // Chúng ta sẽ điều khiển việc hiển thị/ẩn thủ công
+            trigger: 'manual',
             placement: 'right',
             html: true,
             customClass: 'sidebar-popover',
@@ -338,40 +334,53 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
+        // Đóng popover khác khi một popover mới được mở
+        parentLink.addEventListener('show.bs.popover', () => {
+            if (openPopoverInstance && openPopoverInstance !== popover) {
+                openPopoverInstance.hide();
+            }
+        });
+        
+        // Lưu lại popover đang mở
+        parentLink.addEventListener('shown.bs.popover', () => {
+            openPopoverInstance = popover;
+        });
+
+        // Xóa trạng thái khi popover đóng
+        parentLink.addEventListener('hidden.bs.popover', () => {
+            if (openPopoverInstance === popover) {
+                openPopoverInstance = null;
+            }
+        });
+
         parentLink.addEventListener('click', function(e) {
             if (body.classList.contains('sidebar-collapsed')) {
                 e.preventDefault();
                 e.stopPropagation();
-
-                // Đóng các popover khác trước khi mở cái mới
-                document.querySelectorAll('.popover.show').forEach(p => {
-                    if (p !== popover.tip) {
-                        bootstrap.Popover.getInstance(p.previousElementSibling)?.hide();
-                    }
-                });
-
                 popover.toggle();
-                openPopover = popover.tip ? popover : null;
             } else {
-                // Cho phép hành vi collapse mặc định khi sidebar mở rộng
-                if (openPopover) openPopover.hide();
+                // Đảm bảo không có popover nào còn mở khi sidebar mở rộng
+                if (openPopoverInstance) {
+                    openPopoverInstance.hide();
+                }
             }
         });
     });
 
     // Đóng popover khi click ra ngoài
     document.addEventListener('click', function (e) {
-        if (!openPopover) return;
-        
-        const triggerElement = openPopover.element;
-        const popoverElement = openPopover.tip;
+        if (!openPopoverInstance) return;
 
-        if (!triggerElement.contains(e.target) && !popoverElement.contains(e.target)) {
-            openPopover.hide();
-            openPopover = null;
+        // Lấy phần tử gốc đã kích hoạt popover và chính popover đó
+        const triggerElement = openPopoverInstance._element;
+        const popoverElement = openPopoverInstance.tip;
+        
+        // Nếu click không nằm trong trigger và cũng không nằm trong popover
+        if (!triggerElement.contains(e.target) && (popoverElement && !popoverElement.contains(e.target))) {
+            openPopoverInstance.hide();
         }
     });
-    // === END: JAVASCRIPT CHO MENU POP-OUT ===
+    // === END: SỬA LỖI - VIẾT LẠI HOÀN TOÀN LOGIC MENU POP-OUT ===
 });
 </script>
 
