@@ -27,9 +27,7 @@ class AppUser(UserMixin, db.Model):
     telegram_template_user_test = db.Column(db.Text, nullable=True)
     stores = db.relationship('WooCommerceStore', backref='owner', lazy='dynamic', cascade="all, delete-orphan")
     children = db.relationship('AppUser', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
-    # === START: Thêm relationship tới Design ===
     designs = db.relationship('Design', backref='owner', lazy='dynamic', cascade="all, delete-orphan")
-    # === END: Thêm relationship tới Design ===
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
     def is_super_admin(self): return self.role == 'super_admin'
@@ -46,6 +44,11 @@ class WooCommerceStore(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     last_checked = db.Column(db.DateTime(timezone=True), default=None, nullable=True)
     note = db.Column(db.Text, nullable=True)
+    
+    # === START: THÊM CỘT MỚI ĐỂ GIẢI QUYẾT XUNG ĐỘT WORKER ===
+    is_syncing_history = db.Column(db.Boolean, default=False, nullable=False)
+    # === END: THÊM CỘT MỚI ===
+    
     orders = db.relationship('WooCommerceOrder', backref='store', lazy='dynamic', cascade="all, delete-orphan")
     def __repr__(self): return f'<WooCommerceStore {self.name}>'
 
@@ -59,7 +62,7 @@ class WooCommerceOrder(db.Model):
     total = db.Column(db.Float, nullable=False)
     customer_name = db.Column(db.String(255), nullable=True)
     payment_method_title = db.Column(db.String(100), nullable=True)
-    order_created_at = db.Column(db.DateTime, nullable=False, index=True, default=lambda: datetime.now(timezone.utc))
+    order_created_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True, default=lambda: datetime.now(timezone.utc))
     order_modified_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
     shipping_total = db.Column(db.Float, nullable=True)
     customer_note = db.Column(db.Text, nullable=True)
@@ -123,7 +126,6 @@ class BackgroundTask(db.Model):
     requested_cancellation = db.Column(db.Boolean, default=False)
     def __repr__(self): return f'<Task {self.name} {self.id}>'
 
-# === START: THÊM MODEL MỚI CHO DESIGN ===
 class Design(db.Model):
     __tablename__ = 'design'
     id = db.Column(db.Integer, primary_key=True)
@@ -131,21 +133,13 @@ class Design(db.Model):
     image_url = db.Column(db.String(1000), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('app_user.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    def __repr__(self): return f'<Design {self.name}>'
 
-    def __repr__(self):
-        return f'<Design {self.name}>'
-# === END: THÊM MODEL MỚI CHO DESIGN ===
-
-# === START: THÊM MODEL MỚI CHO FULFILLMENT SETTING ===
 class FulfillmentSetting(db.Model):
     __tablename__ = 'fulfillment_setting'
     id = db.Column(db.Integer, primary_key=True)
-    provider_name = db.Column(db.String(50), nullable=False, index=True) # VD: "mangotee"
+    provider_name = db.Column(db.String(50), nullable=False, index=True)
     api_key = db.Column(db.String(255), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('app_user.id'), nullable=False)
-
     __table_args__ = (db.UniqueConstraint('user_id', 'provider_name', name='_user_provider_uc'),)
-
-    def __repr__(self):
-        return f'<FulfillmentSetting for User ID {self.user_id} - {self.provider_name}>'
-# === END: THÊM MODEL MỚI CHO FULFILLMENT SETTING ===
+    def __repr__(self): return f'<FulfillmentSetting for User ID {self.user_id} - {self.provider_name}>'

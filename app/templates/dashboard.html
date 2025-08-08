@@ -85,87 +85,100 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script>
-    // Hàm vẽ biểu đồ
     function renderRevenueChart() {
-        const chartLabels = JSON.parse('{{ chart_labels|safe }}');
-        const chartData = JSON.parse('{{ chart_data|safe }}');
-        const ctx = document.getElementById('revenueChart');
-
-        if (!ctx) return;
-
-        const existingChart = Chart.getChart(ctx);
-        if (existingChart) {
-            existingChart.destroy();
+        // Kiểm tra xem Chart object có tồn tại không
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js is not loaded.');
+            return;
         }
+        
+        try {
+            const chartLabels = JSON.parse('{{ chart_labels|safe }}');
+            const chartData = JSON.parse('{{ chart_data|safe }}');
+            const ctx = document.getElementById('revenueChart');
 
-        Chart.register(ChartDataLabels);
+            if (!ctx) return;
 
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: chartLabels,
-                datasets: [{
-                    label: 'Doanh thu',
-                    data: chartData,
-                    fill: false,
-                    borderColor: '#0d6efd',
-                    borderWidth: 3,
-                    tension: 0.1,
-                    pointBackgroundColor: '#0d6efd',
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { callback: function(value) { return '$' + value.toLocaleString('en-US'); } }
-                    },
-                    x: { grid: { display: false } }
+            const existingChart = Chart.getChart(ctx);
+            if (existingChart) {
+                existingChart.destroy();
+            }
+
+            Chart.register(ChartDataLabels);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: 'Doanh thu',
+                        data: chartData,
+                        fill: true, // Thay đổi để có vùng màu dưới đường line
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)', // Thêm màu nền
+                        borderColor: '#0d6efd',
+                        borderWidth: 2, // Giảm độ dày
+                        tension: 0.3,
+                        pointBackgroundColor: '#0d6efd',
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                    }]
                 },
-                plugins: {
-                    legend: { display: false },
-                    datalabels: {
-                        anchor: 'end',
-                        align: 'top',
-                        color: '#333',
-                        font: { weight: 'bold', size: 14 },
-                        formatter: function(value, context) {
-                            if (value > 0) {
-                                return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
-                            }
-                            return null;
-                        }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: function(value) { return '$' + value.toLocaleString('en-US'); } }
+                        },
+                        x: { grid: { display: false } }
                     },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return 'Doanh thu: $' + context.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            color: '#444',
+                            font: { weight: 'bold' },
+                            formatter: function(value, context) {
+                                if (value > 0) {
+                                    return '$' + Math.round(value).toLocaleString('en-US');
+                                }
+                                return null;
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' Doanh thu: $' + context.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                }
                             }
                         }
                     }
                 }
+            });
+        } catch (e) {
+            console.error("Lỗi khi vẽ biểu đồ:", e);
+            const chartContainer = document.getElementById('revenueChart');
+            if(chartContainer) {
+                chartContainer.parentElement.innerHTML = '<div class="alert alert-warning">Không thể hiển thị biểu đồ. Dữ liệu có thể bị lỗi.</div>';
             }
-        });
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        // Chạy hàm vẽ biểu đồ
         renderRevenueChart();
 
-        // ### JAVASCRIPT CHO BỘ LỌC USER ###
         const adminFilter = document.getElementById('admin_id_filter');
         const form = document.getElementById('statistics-form');
-
         if (adminFilter) {
             adminFilter.addEventListener('change', function() {
                 const subUserFilter = document.getElementById('sub_user_id_filter');
                 if(subUserFilter) {
-                    subUserFilter.value = ""; // Reset bộ lọc user con
+                    subUserFilter.value = "";
                 }
                 form.submit();
             });

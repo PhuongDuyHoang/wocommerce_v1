@@ -97,6 +97,9 @@ def sync_history_for_store(app, store_id: int, job_id: str):
         task = BackgroundTask.query.filter_by(job_id=job_id).first()
         if not store or not task: return
 
+        store.is_syncing_history = True
+        db.session.commit()
+        
         fetch_images_setting = Setting.query.get('FETCH_PRODUCT_IMAGES')
         should_fetch_images = fetch_images_setting.value.lower() == 'true' if fetch_images_setting else False
         
@@ -105,20 +108,34 @@ def sync_history_for_store(app, store_id: int, job_id: str):
         
         try:
             wcapi = API(url=store.store_url, consumer_key=store.consumer_key, consumer_secret=store.consumer_secret, version="wc/v3", timeout=30)
+            
+            # === START: SỬA LỖI HIỂN THỊ TIẾN TRÌNH ===
+            # Thay vì .head(), dùng .get() với per_page=1 để lấy header
+            try:
+                response = wcapi.get("orders", params={'per_page': 1})
+                total_orders = int(response.headers.get('X-WP-Total', 0))
+                task.total = total_orders
+                db.session.commit()
+            except Exception as e:
+                print(f"Không thể lấy tổng số đơn hàng, sẽ không hiển thị Total: {e}")
+                task.total = 0
+                db.session.commit()
+            # === END: SỬA LỖI HIỂN THỊ TIẾN TRÌNH ===
+            
             page = 1
             total_synced = 0
-            images_fixed = 0
-
+            
             while True:
                 task = BackgroundTask.query.filter_by(job_id=job_id).first()
                 if not task or task.requested_cancellation:
-                    if task:
-                        task.status = 'cancelled'; db.session.commit()
-                    return
+                    if task: task.status = 'cancelled'
+                    break
 
-                task.log = f"Đang lấy trang {page} (Lấy ảnh: {'Bật' if should_fetch_images else 'Tắt'}). Đã sửa: {images_fixed} ảnh."
+                task.log = f"Đang lấy trang {page}..."
                 db.session.commit()
-                orders_page = wcapi.get("orders", params={'per_page': 50, 'page': page}).json()
+                # Sử dụng lại wcapi đã khởi tạo
+                orders_page_response = wcapi.get("orders", params={'per_page': 50, 'page': page})
+                orders_page = orders_page_response.json()
                 if not orders_page: break
 
                 for order_data in orders_page:
@@ -132,22 +149,7 @@ def sync_history_for_store(app, store_id: int, job_id: str):
                             item_data.pop('product_id', None)
                             new_item = OrderLineItem(order=history_order, **item_data)
                             db.session.add(new_item)
-                        total_synced += 1
-                    
-                    elif should_fetch_images:
-                        api_line_items = {item['wc_line_item_id']: item for item in full_details['line_items']}
-                        
-                        for line_item_db in existing_order.line_items:
-                            if not line_item_db.image_url:
-                                api_item = api_line_items.get(line_item_db.wc_line_item_id)
-                                if api_item and api_item.get('product_id'):
-                                    try:
-                                        product_data = wcapi.get(f"products/{api_item.get('product_id')}").json()
-                                        if product_data and product_data.get('images'):
-                                            line_item_db.image_url = product_data['images'][0].get('src')
-                                            images_fixed += 1
-                                    except Exception as e:
-                                        print(f"Không thể lấy ảnh cho sản phẩm ID {api_item.get('product_id')} (sửa lỗi): {e}")
+                    total_synced += 1
 
                 db.session.commit()
                 task.progress = total_synced
@@ -155,24 +157,27 @@ def sync_history_for_store(app, store_id: int, job_id: str):
                 page += 1
 
             task.status = 'complete'
-            task.log = f"Hoàn tất! Đã thêm {total_synced} đơn hàng mới và sửa {images_fixed} ảnh bị thiếu."
-            task.total = total_synced
-            task.end_time = datetime.utcnow()
-            db.session.commit()
+            task.log = f"Hoàn tất! Đã xử lý {total_synced} đơn hàng."
+            task.end_time = datetime.now(timezone.utc)
+            
         except Exception as e:
-            task = BackgroundTask.query.filter_by(job_id=job_id).first()
             if task:
                 task.status = 'failed'
                 task.log = f"Lỗi: {str(e)[:500]}"
-                task.total = task.progress
-                task.end_time = datetime.utcnow()
-                db.session.commit()
+                task.end_time = datetime.now(timezone.utc)
             db.session.rollback()
+        finally:
+            store.is_syncing_history = False
+            db.session.commit()
 
 def check_single_store_job(app, store_id):
     with app.app_context():
         store = db.session.get(WooCommerceStore, store_id)
         if not store or not store.is_active:
+            return
+            
+        if store.is_syncing_history:
+            print(f"--- Tạm dừng kiểm tra đơn mới cho '{store.name}' vì đang đồng bộ lịch sử. ---")
             return
 
         print(f"--- Bắt đầu đồng bộ đơn hàng cho: '{store.name}' ---")
@@ -191,7 +196,6 @@ def check_single_store_job(app, store_id):
             if store.last_checked:
                 params['modified_after'] = store.last_checked.isoformat()
             else:
-                # === SỬA LỖI 1: Mở rộng cửa sổ thời gian ban đầu thành 7 ngày ===
                 params['modified_after'] = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
             
             orders_response = wcapi.get("orders", params=params).json()
@@ -244,7 +248,6 @@ def check_single_store_job(app, store_id):
                         db.session.rollback()
                         continue
 
-            # === SỬA LỖI 2: Chỉ cập nhật last_checked khi có đơn hàng được xử lý ===
             if latest_modified_time:
                 store.last_checked = latest_modified_time
                 db.session.commit()
