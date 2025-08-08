@@ -2,6 +2,36 @@
 
 {% block styles %}
 <style>
+    /* START: CSS MỚI CHO BỐ CỤC CỐ ĐỊNH HEADER */
+    .content-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 56px - 40px);
+    }
+    .header-content {
+        flex-shrink: 0;
+    }
+    .table-responsive {
+        flex-grow: 1;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: .375rem;
+    }
+    .table-responsive thead th {
+        position: -webkit-sticky;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #f8f9fa;
+        box-shadow: inset 0 -2px 0 #dee2e6;
+    }
+    .pagination-content {
+        flex-shrink: 0;
+        padding-top: 1rem;
+    }
+    /* END: CSS MỚI */
+
+
     /* === START: SỬA LỖI - Thêm nền xám cho ảnh thu nhỏ === */
     .design-image {
         width: 100px;
@@ -54,79 +84,83 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">{{ title }}</h1>
-</div>
+<div class="content-wrapper">
+    <div class="header-content">
+        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+            <h1 class="h2">{{ title }}</h1>
+        </div>
 
-<div class="card shadow-sm">
-    <div class="card-header">
-        <div class="row align-items-center g-2">
-            <div class="col-md-4">
-                <form action="{{ url_for('designs.manage') }}" method="GET">
-                    <div class="input-group">
-                        <input type="text" class="form-control" name="search_query" placeholder="Tìm tên design..." value="{{ search_query or '' }}">
-                        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+        <div class="card shadow-sm mb-3">
+            <div class="card-body p-3">
+                <div class="row align-items-center g-2">
+                    <div class="col-md-4">
+                        <form action="{{ url_for('designs.manage') }}" method="GET">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="search_query" placeholder="Tìm tên design..." value="{{ search_query or '' }}">
+                                <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+                            </div>
+                        </form>
                     </div>
-                </form>
-            </div>
-            <div class="col-md-8 text-md-end">
-                <div id="bulk-actions-container" class="btn-group me-2" role="group">
-                    <button type="button" class="btn btn-sm btn-danger" id="delete-selected-btn">
-                        <i class="bi bi-trash-fill"></i> Xóa đã chọn (<span id="selected-count">0</span>)
-                    </button>
+                    <div class="col-md-8 text-md-end">
+                        <div id="bulk-actions-container" class="btn-group me-2" role="group">
+                            <button type="button" class="btn btn-sm btn-danger" id="delete-selected-btn">
+                                <i class="bi bi-trash-fill"></i> Xóa đã chọn (<span id="selected-count">0</span>)
+                            </button>
+                        </div>
+                        <button class="btn btn-primary" id="create-design-btn">
+                            <i class="bi bi-plus-circle-fill"></i> Thêm Design
+                        </button>
+                    </div>
                 </div>
-                <button class="btn btn-primary" id="create-design-btn">
-                    <i class="bi bi-plus-circle-fill"></i> Thêm Design
-                </button>
             </div>
         </div>
     </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 5%;" class="text-center"><input class="form-check-input" type="checkbox" id="select-all-checkbox"></th>
-                        <th style="width: 50%;">Tên Design</th>
-                        <th style="width: 25%;" class="text-center">Hình ảnh</th>
-                        <th style="width: 20%;" class="text-center">Hành động</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for design in designs.items %}
-                    <tr id="design-row-{{ design.id }}">
-                        <td class="text-center"><input class="form-check-input row-checkbox" type="checkbox" value="{{ design.id }}"></td>
-                        <td>{{ design.name }}</td>
-                        <td class="text-center">
-                            <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-large-src="{{ design.image_url }}">
-                                <img src="{{ design.image_url }}" alt="{{ design.name }}" class="design-image" onerror="this.parentElement.innerHTML = 'Không thể tải ảnh';">
-                            </a>
-                            <a href="{{ design.image_url }}" target="_blank" class="d-block mt-1 small">Link</a>
-                        </td>
-                        <td class="text-center action-buttons">
-                            <button class="btn btn-sm btn-outline-secondary edit-btn" 
-                                    data-id="{{ design.id }}" 
-                                    title="Chỉnh sửa">
-                                <i class="bi bi-pencil-fill"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger delete-btn" 
-                                    data-id="{{ design.id }}" 
-                                    title="Xóa">
-                                <i class="bi bi-trash-fill"></i>
-                            </button>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="4" class="text-center text-muted py-4">Không có design nào.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 5%;" class="text-center"><input class="form-check-input" type="checkbox" id="select-all-checkbox"></th>
+                    <th style="width: 50%;">Tên Design</th>
+                    <th style="width: 25%;" class="text-center">Hình ảnh</th>
+                    <th style="width: 20%;" class="text-center">Hành động</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for design in designs.items %}
+                <tr id="design-row-{{ design.id }}">
+                    <td class="text-center"><input class="form-check-input row-checkbox" type="checkbox" value="{{ design.id }}"></td>
+                    <td>{{ design.name }}</td>
+                    <td class="text-center">
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-large-src="{{ design.image_url }}">
+                            <img src="{{ design.image_url }}" alt="{{ design.name }}" class="design-image" onerror="this.parentElement.innerHTML = 'Không thể tải ảnh';">
+                        </a>
+                        <a href="{{ design.image_url }}" target="_blank" class="d-block mt-1 small">Link</a>
+                    </td>
+                    <td class="text-center action-buttons">
+                        <button class="btn btn-sm btn-outline-secondary edit-btn"
+                                data-id="{{ design.id }}"
+                                title="Chỉnh sửa">
+                            <i class="bi bi-pencil-fill"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger delete-btn"
+                                data-id="{{ design.id }}"
+                                title="Xóa">
+                            <i class="bi bi-trash-fill"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-4">Không có design nào.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+
     {% if designs.pages > 1 %}
-    <div class="card-footer">
+    <div class="pagination-content">
         <nav aria-label="Design navigation">
             <ul class="pagination justify-content-center mb-0">
                 <li class="page-item {% if not designs.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('designs.manage', page=designs.prev_num, search_query=search_query) }}">«</a></li>
@@ -143,7 +177,6 @@
     </div>
     {% endif %}
 </div>
-
 <div class="modal fade" id="designModal" tabindex="-1" aria-labelledby="designModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -215,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmDeleteModal = new bootstrap.Modal(confirmDeleteModalEl);
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
     let actionToConfirm = null;
-    
+
     function showToast(message, category = 'info') {
         const toastContainer = document.querySelector('.toast-container');
         if (!toastContainer) return;
@@ -272,11 +305,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast('Không thể tải dữ liệu design.', 'danger');
             }
         }
-        
+
         if (deleteBtn) {
             const designId = deleteBtn.dataset.id;
             document.getElementById('confirmDeleteModalBody').textContent = 'Bạn có chắc chắn muốn xóa design này?';
-            
+
             actionToConfirm = async () => {
                 const response = await fetch(`/designs/delete/${designId}`, { method: 'POST' });
                 const data = await response.json();
