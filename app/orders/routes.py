@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_DOWN
 import json
 import requests
 from app.models import Design, FulfillmentSetting
-from app.services.fulfillment_service import MangoTeeService
+from app.services.fulfillment_service import get_fulfillment_service
 
 from . import orders_bp
 from app import db
@@ -19,7 +19,6 @@ from app.services import get_visible_orders_query, get_visible_stores_query
 @orders_bp.route('/')
 @login_required
 def manage_all_orders():
-    # ... (Nội dung route này giữ nguyên, không thay đổi)
     page = request.args.get('page', 1, type=int)
     base_query = db.session.query(WooCommerceOrder, WooCommerceStore, AppUser.username.label('owner_username'))\
         .join(WooCommerceStore, WooCommerceOrder.store_id == WooCommerceStore.id)\
@@ -175,6 +174,9 @@ def get_refund_details(order_id):
             'refundable_amount': str(refundable_amount.quantize(Decimal('0.01'), rounding=ROUND_DOWN)),
             'refunds': [{'id': r.get('id'),'reason': r.get('reason') or 'Không có lý do','amount': r.get('amount', '0'),'date': r.get('date_created')} for r in refunds_data]
         })
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"WooCommerce API connection error for refund details order {order_id}: {e}")
+        return jsonify({'success': False, 'message': f'Lỗi kết nối đến cửa hàng WooCommerce: {e}'}), 500
     except Exception as e:
         current_app.logger.error(f"Error getting refund details for order {order_id}: {e}")
         return jsonify({'success': False, 'message': f'Không thể lấy chi tiết hoàn tiền: {str(e)}'}), 500
@@ -204,185 +206,126 @@ def process_refund(order_id):
             return jsonify({'success': True, 'message': 'Yêu cầu hoàn tiền đã được xử lý thành công!'})
         else:
             return jsonify({'success': False, 'message': response.json().get('message', 'Lỗi WooCommerce.')}), response.status_code
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"WooCommerce API connection error for process refund order {order_id}: {e}")
+        return jsonify({'success': False, 'message': f'Lỗi kết nối đến cửa hàng WooCommerce: {e}'}), 500
     except Exception as e:
         current_app.logger.error(f"Error processing refund for order {order_id}: {e}")
         return jsonify({'success': False, 'message': f'Lỗi kết nối: {str(e)}'}), 500
 
 
-# === START: VIẾT LẠI HOÀN TOÀN LOGIC LẤY DỮ LIỆU FULFILL ===
-@orders_bp.route('/get_fulfillment_details/<int:order_id>', methods=['GET'])
+# === CÁC ROUTE CHO QUY TRÌNH FULFILLMENT ===
+
+@orders_bp.route('/get_fulfillment_template/<provider_name>')
+@login_required
+def get_fulfillment_template(provider_name):
+    return render_template(f'orders/{provider_name}.html')
+
+
+@orders_bp.route('/get_fulfillment_details/<int:order_id>')
 @login_required
 def get_fulfillment_details(order_id):
-    order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
-    store = order.store
+    order = get_visible_orders_query(current_user).filter(WooCommerceOrder.id == order_id).first_or_404()
+    user_with_key = current_user
+    if not current_user.is_super_admin() and not current_user.is_admin():
+        user_with_key = current_user.parent
+    if not user_with_key or not (user_with_key.is_admin() or user_with_key.is_super_admin()):
+         return jsonify({"success": False, "message": "Không tìm thấy tài khoản Admin quản lý để lấy API key."}), 403
     
-    admin_user = current_user if current_user.is_admin() or current_user.is_super_admin() else current_user.parent
-    if not admin_user:
-        return jsonify({'success': False, 'message': 'Không tìm thấy tài khoản admin quản lý.'}), 404
-        
-    mangotee_setting = FulfillmentSetting.query.filter_by(user_id=admin_user.id, provider_name='mangotee').first()
-    if not mangotee_setting or not mangotee_setting.api_key:
-        return jsonify({'success': False, 'message': 'Admin quản lý chưa cấu hình API Key cho MangoTee.'}), 400
-
+    mangotee_setting = FulfillmentSetting.query.filter_by(user_id=user_with_key.id, provider_name='mangotee').first()
+    api_key = mangotee_setting.api_key if mangotee_setting else None
+    
     try:
-        # Gọi API của WooCommerce để lấy dữ liệu gốc, đầy đủ và có cấu trúc
-        wcapi = API(url=store.store_url, consumer_key=store.consumer_key, consumer_secret=store.consumer_secret, version="wc/v3", timeout=20)
-        order_data_res = wcapi.get(f"orders/{order.wc_order_id}")
-        order_data_res.raise_for_status()
-        order_data = order_data_res.json()
-    except Exception as e:
-        current_app.logger.error(f"Could not fetch order {order.wc_order_id} from WooCommerce for fulfillment: {e}")
-        return jsonify({'success': False, 'message': f'Lỗi khi lấy dữ liệu gốc từ WooCommerce: {e}'}), 500
+        current_app.logger.info(f"Fulfillment: Calling WooCommerce API for order WC-{order.wc_order_id} at {order.store.store_url}")
+        wcapi = API(
+            url=order.store.store_url,
+            consumer_key=order.store.consumer_key,
+            consumer_secret=order.store.consumer_secret,
+            version="wc/v3",
+            timeout=15
+        )
+        woo_order_response = wcapi.get(f"orders/{order.wc_order_id}")
+        woo_order_response.raise_for_status()
+        woo_order_data = woo_order_response.json()
 
-    # Ưu tiên địa chỉ giao hàng (shipping), nếu không có thì dùng địa chỉ thanh toán (billing)
-    shipping_info = order_data.get('shipping', {})
-    if not shipping_info.get('first_name'): # Kiểm tra nếu shipping rỗng
-        shipping_info = order_data.get('billing', {})
-    
-    billing_info = order_data.get('billing', {})
-
-    # Chuẩn bị dữ liệu trả về cho frontend
-    original_line_items = [{
-        'name': item.get('name'),
-        'sku': item.get('sku'),
-        'quantity': item.get('quantity'),
-        'image_url': db.session.query(OrderLineItem.image_url).filter_by(wc_line_item_id=item.get('id')).scalar(),
-        'variations': [meta.get('value') for meta in item.get('meta_data', []) if not meta.get('key').startswith('_')]
-    } for item in order_data.get('line_items', [])]
-
-    data_to_return = {
-        'success': True,
-        'provider': 'mangotee',
-        'api_key': mangotee_setting.api_key,
-        'order_details': {
-            'reference_id': f"{store.name.replace(' ', '_')}_{order.wc_order_id}",
-            'shipping_address': {
-                'first_name': shipping_info.get('first_name', ''),
-                'last_name': shipping_info.get('last_name', ''),
-                'address_1': shipping_info.get('address_1', ''),
-                'address_2': shipping_info.get('address_2', ''),
-                'city': shipping_info.get('city', ''),
-                'state': shipping_info.get('state', ''),
-                'postcode': shipping_info.get('postcode', ''),
-                'country': shipping_info.get('country', 'US'),
-                'email': billing_info.get('email', ''),
-                'phone': billing_info.get('phone', '')
-            },
-            'original_line_items': original_line_items
+        data_payload = {
+            "wc_order_id": order.wc_order_id,
+            "store_name": order.store.name,
+            "shipping_address": woo_order_data.get('shipping', {}),
+            "line_items": [{"id": item.get('id'),"name": item.get('name'),"quantity": item.get('quantity'),"sku": item.get('sku')} for item in woo_order_data.get('line_items', [])]
         }
-    }
-    return jsonify(data_to_return)
-# === END: VIẾT LẠI HOÀN TOÀN LOGIC LẤY DỮ LIỆU FULFILL ===
+        return jsonify({"success": True, "data": data_payload,"api_key": api_key})
+
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"FULFILLMENT ERROR (Connection/Timeout) for WC Order ID {order.wc_order_id}: {e}")
+        return jsonify({"success": False, "message": f"Lỗi kết nối đến cửa hàng WooCommerce: Mất quá nhiều thời gian để phản hồi."}), 500
+    except Exception as e:
+        current_app.logger.error(f"FULFILLMENT ERROR (General) for WC Order ID {order.wc_order_id}: {e}")
+        return jsonify({"success": False, "message": f'Lỗi không xác định khi lấy dữ liệu từ WooCommerce: {e}'}), 500
+
+
+def get_user_and_setting(provider_name):
+    user_with_key = current_user
+    if not current_user.is_super_admin() and not current_user.is_admin():
+        user_with_key = current_user.parent
+    if not user_with_key: return None, None
+    setting = FulfillmentSetting.query.filter_by(user_id=user_with_key.id, provider_name=provider_name).first()
+    return user_with_key, setting
 
 
 @orders_bp.route('/process_fulfillment/<int:order_id>', methods=['POST'])
 @login_required
 def process_fulfillment(order_id):
-    data = request.json
-    if not data:
-        return jsonify({'success': False, 'message': 'Dữ liệu không hợp lệ'}), 400
+    order = get_visible_orders_query(current_user).filter(WooCommerceOrder.id == order_id).first_or_404()
+    payload = request.json
+    provider_name = 'mangotee'
+    
+    user, setting = get_user_and_setting(provider_name)
+    if not user: return jsonify({"success": False, "message": "Lỗi xác thực quyền."}), 403
+    if not setting or not setting.api_key: return jsonify({"success": False, "message": f"Chưa cấu hình API Key cho {provider_name}."}), 400
 
-    api_key = data.get('api_key')
-    payload = data.get('payload')
-
-    if not api_key or not payload:
-        return jsonify({'success': False, 'message': 'Thiếu API Key hoặc payload.'}), 400
-        
     try:
-        mangotee_service = MangoTeeService(api_key=api_key)
-        success, message = mangotee_service.create_order(payload)
+        service = get_fulfillment_service(provider_name, setting.api_key)
+        if not service:
+            return jsonify({"success": False, "message": "Nhà cung cấp không được hỗ trợ."}), 404
 
+        success, message = service.create_order(payload)
+        
         if success:
-            order = db.session.get(WooCommerceOrder, order_id)
-            if order:
-                note_message = message.replace("Gửi đơn thành công! ", "")
-                order.note = (order.note or '') + f"\nĐã fulfill qua MangoTee. {note_message}"
-                db.session.commit()
-            return jsonify({'success': True, 'message': 'Đã gửi đơn hàng đến MangoTee thành công!'})
-        else:
-            return jsonify({'success': False, 'message': message}), 400
+            note_content = f"\n[Fulfilled by {provider_name.title()} - {message}]"
+            order.note = (order.note or '') + note_content
+            db.session.commit()
 
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
+        return jsonify({"success": success, "message": message})
     except Exception as e:
-        current_app.logger.error(f"Fulfillment processing error for order {order_id}: {e}")
-        return jsonify({'success': False, 'message': f'Lỗi không xác định: {e}'}), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
-@orders_bp.route('/get_fulfillment_template/<provider_name>', methods=['GET'])
-@login_required
-def get_fulfillment_template(provider_name):
-    if provider_name not in ['mangotee']:
-        abort(404, "Nhà cung cấp không hợp lệ.")
-    template_path = f'orders/fulfillment_modals/{provider_name}.html'
-    return render_template(template_path)
 
-@orders_bp.route('/api/fulfillment_products/<provider_name>', methods=['GET'])
+@orders_bp.route('/api/fulfillment_products/<provider_name>')
 @login_required
 def api_get_fulfillment_products(provider_name):
-    """
-    API endpoint để lấy danh sách sản phẩm từ một nhà cung cấp fulfillment.
-    """
-    if provider_name not in ['mangotee']:
-        abort(404, "Nhà cung cấp không hợp lệ.")
+    user, setting = get_user_and_setting(provider_name)
+    if not user: return jsonify({"success": False, "message": "Lỗi xác thực."}), 403
+    if not setting or not setting.api_key: return jsonify({"success": False, "message": f"Chưa cấu hình API key cho {provider_name}."}), 400
 
-    # Tìm tài khoản admin/super_admin để lấy API key
-    admin_user = current_user if current_user.is_admin() or current_user.is_super_admin() else current_user.parent
-    if not admin_user:
-        return jsonify({'success': False, 'message': 'Không tìm thấy tài khoản admin quản lý.'}), 404
+    service = get_fulfillment_service(provider_name, setting.api_key)
+    if not service:
+        return jsonify({"success": False, "message": "Nhà cung cấp không được hỗ trợ."}), 404
 
-    # Lấy API key từ cài đặt
-    setting = FulfillmentSetting.query.filter_by(user_id=admin_user.id, provider_name=provider_name).first()
-    if not setting or not setting.api_key:
-        return jsonify({'success': False, 'message': f'Admin quản lý chưa cấu hình API Key cho {provider_name.title()}.'}), 400
-    
-    try:
-        if provider_name == 'mangotee':
-            service = MangoTeeService(api_key=setting.api_key)
-            success, data = service.get_products()
-            
-            if success:
-                # API của MangoTee trả về trong data['products']
-                return jsonify({'success': True, 'products': data.get('products', [])})
-            else:
-                return jsonify({'success': False, 'message': data}), 500
-        
-        # Thêm logic cho các provider khác ở đây
-        # elif provider_name == 'printful':
-        #    ...
+    success, data = service.get_products()
+    return jsonify({"success": success, "message": "OK" if success else data, "data": data if success else None})
 
-    except ValueError as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
-    except Exception as e:
-        current_app.logger.error(f"Error fetching products from {provider_name}: {e}")
-        return jsonify({'success': False, 'message': f'Lỗi không xác định khi lấy sản phẩm từ {provider_name.title()}.'}), 500
 
-@orders_bp.route('/api/fulfillment_variants/<provider_name>/<path:sku>', methods=['GET'])
+@orders_bp.route('/api/fulfillment_variants/<provider_name>/<path:sku>')
 @login_required
 def api_get_fulfillment_variants(provider_name, sku):
-    """
-    API endpoint để lấy chi tiết các biến thể (màu, size) của một sản phẩm.
-    """
-    if provider_name not in ['mangotee']:
-        abort(404, "Nhà cung cấp không hợp lệ.")
-
-    admin_user = current_user if current_user.is_admin() or current_user.is_super_admin() else current_user.parent
-    if not admin_user:
-        return jsonify({'success': False, 'message': 'Không tìm thấy tài khoản admin quản lý.'}), 404
-
-    setting = FulfillmentSetting.query.filter_by(user_id=admin_user.id, provider_name=provider_name).first()
-    if not setting or not setting.api_key:
-        return jsonify({'success': False, 'message': f'Admin quản lý chưa cấu hình API Key cho {provider_name.title()}.'}), 400
+    user, setting = get_user_and_setting(provider_name)
+    if not user: return jsonify({"success": False, "message": "Lỗi xác thực."}), 403
+    if not setting or not setting.api_key: return jsonify({"success": False, "message": f"Chưa cấu hình API key cho {provider_name}."}), 400
     
-    try:
-        if provider_name == 'mangotee':
-            service = MangoTeeService(api_key=setting.api_key)
-            success, data = service.get_product_variants(sku)
-            
-            if success:
-                return jsonify({'success': True, 'variants': data})
-            else:
-                return jsonify({'success': False, 'message': data}), 500
-                
-    except Exception as e:
-        current_app.logger.error(f"Error fetching variants for {sku} from {provider_name}: {e}")
-        return jsonify({'success': False, 'message': f'Lỗi không xác định khi lấy biến thể sản phẩm.'}), 500
+    service = get_fulfillment_service(provider_name, setting.api_key)
+    if not service:
+        return jsonify({"success": False, "message": "Nhà cung cấp không được hỗ trợ."}), 404
+        
+    success, data = service.get_product_variants(sku)
+    return jsonify({"success": success, "message": "OK" if success else data, "data": data if success else None})
