@@ -1,6 +1,8 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
 <style>
-    .design-thumbnail-container{width:42px;height:42px;display:flex;align-items:center;justify-content:center}.design-thumbnail{width:38px;height:38px;object-fit:contain;cursor:pointer;border:1px solid #dee2e6;border-radius:4px;background-color:#f8f9fa}#viewDesignModal .modal-content{background-color:transparent;border:none;box-shadow:none}#viewDesignModal .modal-header{position:absolute;top:-1rem;right:-1rem;z-index:1056;border-bottom:0}
-    
+    .design-thumbnail-container{width:42px;height:42px;display:flex;align-items:center;justify-content:center}.design-thumbnail{width:38px;height:38px;object-fit:contain;cursor:pointer;border:1px solid #dee2e6;border-radius:4px;background-color:#f8f9fa}#viewDesignModal .modal-content{background-color:rgba(0, 0, 0, 0.2);border:none;box-shadow:none}#viewDesignModal .modal-header{position:absolute;top:-1rem;right:-1rem;z-index:1056;border-bottom:0}
+
     /* CSS cho chức năng autocomplete mới */
     .autocomplete-container {
         position: relative;
@@ -24,6 +26,56 @@
      .autocomplete-items .dropdown-item:hover {
         background-color: #e9ecef;
     }
+
+    /* SỬA ĐỔI: Tăng kích thước modal chọn design */
+    #designSelectModal .modal-dialog {
+        max-width: 95%;
+        height: 90vh; /* Đặt chiều cao mong muốn (90% chiều cao màn hình) */
+        margin-top: 2.5vh; /* Căn ra giữa theo chiều dọc một chút */
+        margin-bottom: 2.5vh;
+    }
+
+    #designSelectModal .modal-content {
+        height: 100%;
+        overflow: hidden; /* Tránh 2 thanh cuộn chồng chéo */
+    }
+
+    /* === MÃ MỚI: CSS cho icon xem nhanh design === */
+    .card-img-top-container {
+        position: relative;
+        height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+    }
+    .card-img-top-container .card-img-top {
+        max-height: 100%;
+        max-width: 100%;
+        object-fit: contain;
+    }
+    .view-design-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        cursor: pointer;
+        z-index: 10;
+        padding: 0.25rem;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border-radius: 50%;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+    }
+    .view-design-btn:hover {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+    /* === KẾT THÚC MÃ MỚI === */
+
 </style>
 <div class="modal-header">
     <h5 class="modal-title" id="fulfillModalLabel">
@@ -71,7 +123,7 @@
     <button type="submit" form="mangotee-form" class="btn btn-primary" id="mangotee-submit-btn" disabled><i class="bi bi-send-fill"></i> Gửi đơn hàng</button>
 </div>
 
-<div class="modal fade" id="designSelectModal" tabindex="-1" aria-labelledby="designSelectModalLabel" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="designSelectModalLabel">Chọn Design</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="input-group mb-3"><input type="text" id="design-search-input" class="form-control" placeholder="Tìm tên design..."><button class="btn btn-outline-secondary" type="button" id="design-search-btn"><i class="bi bi-search"></i></button></div><div id="design-grid" class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3"></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button></div></div></div></div>
+<div class="modal fade" id="designSelectModal" tabindex="-1" aria-labelledby="designSelectModalLabel" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="designSelectModalLabel">Chọn Design</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="input-group mb-3"><input type="text" id="design-search-input" class="form-control" placeholder="Tìm tên design..."><button class="btn btn-outline-secondary" type="button" id="design-search-btn"><i class="bi bi-search"></i></button></div><div id="design-grid" class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 row-cols-xl-8 g-3"></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button></div></div></div></div>
 <div class="modal fade" id="viewDesignModal" tabindex="-1" aria-labelledby="viewDesignModalLabel" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body text-center p-0"><img src="" id="viewDesignImage" class="img-fluid" style="max-height: 80vh; border-radius: .5rem;"></div></div></div></div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -119,6 +171,7 @@ window.initFulfillMangotee = async (orderId) => {
         toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
     }
 
+    // === HÀM ĐÃ SỬA ĐỔI: renderDesigns ===
     function renderDesigns(query = '') {
         const lowerCaseQuery = query.toLowerCase();
         const filteredDesigns = fulfillState.allDesigns.filter(d => d.name.toLowerCase().includes(lowerCaseQuery));
@@ -129,7 +182,19 @@ window.initFulfillMangotee = async (orderId) => {
             filteredDesigns.forEach(design => {
                 const col = document.createElement('div');
                 col.className = 'col';
-                col.innerHTML = `<div class="card h-100" style="cursor: pointer;" data-design-url="${design.image_url}"><img src="${design.image_url}" class="card-img-top" style="height: 120px; object-fit: contain; background-color: #f8f9fa;"><div class="card-body p-2"><p class="card-text small text-truncate" title="${design.name}">${design.name}</p></div></div>`;
+                // Cập nhật HTML để bao gồm container, ảnh, và icon xem nhanh
+                col.innerHTML = `
+                    <div class="card h-100" data-design-url="${design.image_url}" style="cursor: pointer;">
+                        <div class="card-img-top-container">
+                            <img src="${design.image_url}" class="card-img-top" alt="${design.name}">
+                            <span class="view-design-btn" data-view-url="${design.image_url}">
+                                <i class="bi bi-eye-fill" style="pointer-events: none;"></i>
+                            </span>
+                        </div>
+                        <div class="card-body p-2">
+                            <p class="card-text small text-truncate" title="${design.name}">${design.name}</p>
+                        </div>
+                    </div>`;
                 designGrid.appendChild(col);
             });
         }
@@ -239,7 +304,6 @@ window.initFulfillMangotee = async (orderId) => {
         }
     }
 
-    // Event Delegation
     lineItemsContainer.addEventListener('input', (e) => {
         const target = e.target;
         if (target.classList.contains('product-type-input')) {
@@ -301,7 +365,6 @@ window.initFulfillMangotee = async (orderId) => {
             }));
     }
 
-    // --- CÁC HÀM VÀ SỰ KIỆN KHÁC GIỮ NGUYÊN ---
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.autocomplete-container')) {
             document.querySelectorAll('.autocomplete-items').forEach(d => d.classList.remove('show'));
@@ -326,8 +389,19 @@ window.initFulfillMangotee = async (orderId) => {
     });
     designSearchBtn.addEventListener('click', () => renderDesigns(designSearchInput.value));
     designSearchInput.addEventListener('keyup', (e) => { if(e.key === 'Enter') renderDesigns(designSearchInput.value); });
+    
+    // === SỰ KIỆN ĐÃ SỬA ĐỔI: click trên designGrid ===
     designGrid.addEventListener('click', e => {
-        const card = e.target.closest('.card');
+        // Ưu tiên 1: Kiểm tra nếu nút xem nhanh được nhấp
+        const viewBtn = e.target.closest('.view-design-btn');
+        if (viewBtn) {
+            document.getElementById('viewDesignImage').src = viewBtn.dataset.viewUrl;
+            viewDesignModal.show();
+            return; // Dừng xử lý để không chạy logic chọn design
+        }
+
+        // Ưu tiên 2: Nếu không phải nút xem nhanh, xử lý logic chọn design như cũ
+        const card = e.target.closest('.card[data-design-url]');
         if (card && fulfillState.currentTarget.input) {
             document.getElementById(fulfillState.currentTarget.input).value = card.dataset.designUrl;
             document.getElementById(fulfillState.currentTarget.thumb).innerHTML = `<img src="${card.dataset.designUrl}" class="design-thumbnail"/>`;
@@ -335,6 +409,7 @@ window.initFulfillMangotee = async (orderId) => {
             fulfillState.currentTarget = {};
         }
     });
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         submitBtn.disabled = true;
