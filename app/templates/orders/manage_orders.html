@@ -24,7 +24,7 @@
     .save-status.saving { background-color: #0dcaf0; }
     .save-status.saved { background-color: #198754; }
     .save-status.error { background-color: #dc3545; }
-    .status-update-form { display: flex; align-items: center; gap: 8px; min-width: 200px; }
+    .status-update-form { display: flex; align-items: center; gap: 8px; min-width: 180px; }
     .status-select { flex-grow: 1; font-weight: 500; }
     .status-select.status-processing { background-color: #84af77; color: white; }
     .status-select.status-completed { background-color: #77a4b4; color: white; }
@@ -74,7 +74,12 @@
                 {% elif column.key == 'actions' %}
                     <div class="text-center d-flex gap-1 justify-content-center flex-wrap">
                         <button class="btn btn-sm btn-outline-info refund-btn" data-order-id="{{ order.id }}" data-wc-order-id="{{ order.wc_order_id }}" title="Xử lý hoàn tiền"><i class="bi bi-currency-exchange"></i></button>
-                        <button class="btn btn-sm btn-outline-primary fulfill-btn" data-order-id="{{ order.id }}" title="Fulfill Đơn hàng"><i class="bi bi-send-fill"></i></button>
+                        <button 
+                            class="btn btn-sm {% if order.is_fulfilled %}btn-success{% else %}btn-outline-primary{% endif %} fulfill-btn" 
+                            data-order-id="{{ order.id }}" 
+                            title="{% if order.is_fulfilled %}Đã Fulfill (Có thể Fulfill lại){% else %}Fulfill Đơn hàng{% endif %}">
+                            <i class="bi {% if order.is_fulfilled %}bi-check-circle-fill{% else %}bi-box-seam-fill{% endif %}"></i>
+                        </button>
                     </div>
                 {% else %}<div title="{{ order[column.key] or '' }}">{{ order[column.key] or '' }}</div>{% endif %}</td>{% endif %}{% endfor %}</tr>{% else %}<tr><td colspan="100%" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào.</td></tr>{% endfor %}</tbody>
         </table>
@@ -98,7 +103,6 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Hàm showToast toàn cục
     window.showToast = function(message, category = 'info') {
         const toastContainer = document.querySelector('.toast-container');
         if (!toastContainer) return;
@@ -109,14 +113,9 @@ document.addEventListener('DOMContentLoaded', function() {
         toastContainer.appendChild(toastEl);
         new bootstrap.Toast(toastEl, { delay: 5000 }).show();
     };
-    
-    // Khởi tạo các chức năng
     const imageModal = document.getElementById('imageModal');
     if (imageModal) { imageModal.addEventListener('show.bs.modal', (e) => { e.currentTarget.querySelector('#modalImage').src = e.relatedTarget.dataset.largeSrc; }); }
-    
     document.querySelectorAll('#filters-form select').forEach(s => s.addEventListener('change', () => document.getElementById('filters-form').submit()));
-
-    // === LOGIC LƯU GHI CHÚ ===
     document.querySelectorAll('.order-note-textarea').forEach(textarea => {
         textarea.addEventListener('blur', function() {
             if (this.dataset.originalValue.trim() === this.value.trim()) return;
@@ -135,8 +134,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }).finally(() => { setTimeout(() => statusDiv.classList.remove('show'), 2000); });
         });
     });
-
-    // === LOGIC CẬP NHẬT TRẠNG THÁI ===
     document.querySelectorAll('.status-select').forEach(select => {
         select.addEventListener('change', function() { this.nextElementSibling.disabled = (this.dataset.originalStatus === this.value); });
     });
@@ -158,8 +155,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }).finally(() => { this.innerHTML = '<i class="bi bi-save"></i>'; });
         });
     });
-
-    // === LOGIC HOÀN TIỀN (REFUND) ===
     const refundModal = new bootstrap.Modal(document.getElementById('refundModal'));
     let currentRefundData = {};
     document.querySelectorAll('.refund-btn').forEach(btn => {
@@ -216,13 +211,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
-    
-    // === LOGIC FULFILLMENT ===
     const fulfillProviderSelectModal = new bootstrap.Modal(document.getElementById('fulfillProviderSelectModal'));
     const fulfillModal = new bootstrap.Modal(document.getElementById('fulfillModal'));
     let currentOrderIdForFulfill = null;
     const availableProviders = [{ key: 'mangotee', name: 'Fulfill qua MangoTee', logo: 'https://stripeptechgo.sfo3.cdn.digitaloceanspaces.com/LogoFF/logomango.png' }];
-
     async function openFulfillInterface(providerKey) {
         const fulfillModalContent = document.getElementById('fulfill-modal-content');
         fulfillModalContent.innerHTML = `<div class="modal-body text-center p-5"><div class="spinner-border text-primary"></div><p class="mt-2">Đang tải...</p></div>`;
@@ -248,7 +240,6 @@ document.addEventListener('DOMContentLoaded', function() {
             fulfillModalContent.innerHTML = `<div class="modal-body"><div class="alert alert-danger">${error.message}</div></div>`;
         }
     }
-
     document.querySelectorAll('.fulfill-btn').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();

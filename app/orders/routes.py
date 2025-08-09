@@ -88,6 +88,8 @@ def manage_all_orders():
     for order_obj, store_obj, owner_username_str in orders_pagination.items:
         order_obj.store = store_obj
         order_obj.owner_username = owner_username_str or 'Chưa gán'
+        # Kiểm tra xem trong note có dấu hiệu đã fulfill chưa và thêm thuộc tính is_fulfilled
+        order_obj.is_fulfilled = '[Fulfilled by' in (order_obj.note or '')
         orders_with_details.append(order_obj)
     stores_for_filter = get_visible_stores_query(current_user).order_by(WooCommerceStore.name).all()
     admins_for_filter, users_for_filter = [], []
