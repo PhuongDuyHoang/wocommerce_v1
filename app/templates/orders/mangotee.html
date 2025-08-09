@@ -1,34 +1,5 @@
 <style>
-    /* CSS cho thumbnail design sau khi được chọn */
-    .design-thumbnail-container {
-        width: 42px; /* Dành không gian cho ảnh thumb */
-        height: 42px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .design-thumbnail {
-        width: 38px;
-        height: 38px;
-        object-fit: contain;
-        cursor: pointer;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        background-color: #f8f9fa;
-    }
-    /* CSS cho modal xem ảnh lớn */
-    #viewDesignModal .modal-content {
-        background-color: transparent;
-        border: none;
-        box-shadow: none;
-    }
-    #viewDesignModal .modal-header {
-        position: absolute;
-        top: -1rem;
-        right: -1rem;
-        z-index: 1056; /* Cao hơn modal-body */
-        border-bottom: 0;
-    }
+    .design-thumbnail-container{width:42px;height:42px;display:flex;align-items:center;justify-content:center}.design-thumbnail{width:38px;height:38px;object-fit:contain;cursor:pointer;border:1px solid #dee2e6;border-radius:4px;background-color:#f8f9fa}#viewDesignModal .modal-content{background-color:transparent;border:none;box-shadow:none}#viewDesignModal .modal-header{position:absolute;top:-1rem;right:-1rem;z-index:1056;border-bottom:0}
 </style>
 <div class="modal-header">
     <h5 class="modal-title" id="fulfillModalLabel">
@@ -46,7 +17,14 @@
     <form id="mangotee-form" class="d-none">
         <h6>1. Thông tin giao hàng</h6>
         <div class="row">
-            <div class="col-md-6 mb-2"><label for="shipping-name" class="form-label">Tên khách hàng</label><input type="text" class="form-control" id="shipping-name" required></div>
+            <div class="col-md-3 mb-2">
+                <label for="shipping-first-name" class="form-label">Họ & Tên đệm</label>
+                <input type="text" class="form-control" id="shipping-first-name" required>
+            </div>
+            <div class="col-md-3 mb-2">
+                <label for="shipping-last-name" class="form-label">Tên</label>
+                <input type="text" class="form-control" id="shipping-last-name" required>
+            </div>
             <div class="col-md-6 mb-2"><label for="shipping-email" class="form-label">Email</label><input type="email" class="form-control" id="shipping-email" required></div>
             <div class="col-md-6 mb-2"><label for="shipping-phone" class="form-label">Số điện thoại</label><input type="text" class="form-control" id="shipping-phone" required></div>
             <div class="col-md-6 mb-2"><label for="shipping-address1" class="form-label">Địa chỉ</label><input type="text" class="form-control" id="shipping-address1" required></div>
@@ -56,7 +34,31 @@
             <div class="col-md-4 mb-3"><label for="shipping-country" class="form-label">Quốc gia</label><input type="text" class="form-control" id="shipping-country" value="US" required></div>
         </div>
         <hr>
-        <div class="row"><div class="col-md-6 mb-3"><label for="mangotee-order-id" class="form-label">Mã đơn hàng NCC</label><input type="text" class="form-control" id="mangotee-order-id" required><div class="form-text">Mã đơn hàng sẽ được gửi cho MangoTee.</div></div></div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="mangotee-order-id" class="form-label">Mã đơn hàng NCC</label>
+                <input type="text" class="form-control" id="mangotee-order-id" required>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="mangotee-printer-select" class="form-label">Printer</label>
+                <select class="form-select" id="mangotee-printer-select" required>
+                    <option value="US1" selected>US1</option>
+                    <option value="FASTUS">FASTUS</option>
+                    <option value="TIKTOK">TIKTOK</option>
+                    <option value="VNEMB">VNEMB</option>
+                    <option value="USEMB">USEMB</option>
+                </select>
+            </div>
+             <div class="col-md-3 mb-3">
+                <label for="mangotee-facility-code" class="form-label">Facility Code</label>
+                <select class="form-select" id="mangotee-facility-code">
+                    <option value="" selected>(Để trống)</option>
+                    <option value="SJ">SJ</option>
+                    <option value="VA">VA</option>
+                    <option value="TX">TX</option>
+                </select>
+            </div>
+        </div>
         <hr>
 
         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -90,20 +92,16 @@
 <div class="modal fade" id="viewDesignModal" tabindex="-1" aria-labelledby="viewDesignModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center p-0">
-                <img src="" id="viewDesignImage" class="img-fluid" style="max-height: 80vh; border-radius: .5rem;">
-            </div>
+            <div class="modal-header"><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body text-center p-0"><img src="" id="viewDesignImage" class="img-fluid" style="max-height: 80vh; border-radius: .5rem;"></div>
         </div>
     </div>
 </div>
 
 <script>
 const fulfillState = {
-    allVariants: [], // Lưu trữ danh sách TẤT CẢ biến thể
-    productTypes: [], // Lưu danh sách TÊN sản phẩm đã được lọc duy nhất
+    allVariants: [],
+    productTypes: [],
     allDesigns: [],
     productCardIndex: 0,
     isDataLoaded: false,
@@ -147,24 +145,17 @@ window.initFulfillMangotee = async (orderId) => {
     function renderDesigns(query = '') {
         const lowerCaseQuery = query.toLowerCase();
         const filteredDesigns = fulfillState.allDesigns.filter(d => d.name.toLowerCase().includes(lowerCaseQuery));
-        
         designGrid.innerHTML = '';
         if (filteredDesigns.length === 0) {
             designGrid.innerHTML = '<p class="text-muted ms-3">Không tìm thấy design nào.</p>';
-            return;
+        } else {
+            filteredDesigns.forEach(design => {
+                const col = document.createElement('div');
+                col.className = 'col';
+                col.innerHTML = `<div class="card h-100" style="cursor: pointer;" data-design-url="${design.image_url}"><img src="${design.image_url}" class="card-img-top" style="height: 120px; object-fit: contain; background-color: #f8f9fa;"><div class="card-body p-2"><p class="card-text small text-truncate" title="${design.name}">${design.name}</p></div></div>`;
+                designGrid.appendChild(col);
+            });
         }
-        filteredDesigns.forEach(design => {
-            const col = document.createElement('div');
-            col.className = 'col';
-            col.innerHTML = `
-                <div class="card h-100" style="cursor: pointer;" data-design-url="${design.image_url}">
-                    <img src="${design.image_url}" class="card-img-top" style="height: 120px; object-fit: contain; background-color: #f8f9fa;">
-                    <div class="card-body p-2">
-                        <p class="card-text small text-truncate" title="${design.name}">${design.name}</p>
-                    </div>
-                </div>`;
-            designGrid.appendChild(col);
-        });
     }
 
     async function initialize() {
@@ -176,15 +167,12 @@ window.initFulfillMangotee = async (orderId) => {
                 ]);
                 const productsData = await productsRes.json();
                 if (!productsRes.ok || !productsData.success) throw new Error(productsData.message || 'Lỗi tải sản phẩm NCC.');
-                
                 fulfillState.allVariants = productsData.data.products.filter(p => p && p.variations && p.variations.length > 0 && p.variations[0].sku);
                 const productNames = new Set(fulfillState.allVariants.map(p => p.name));
                 fulfillState.productTypes = [...productNames];
-                
                 const designsData = await designsRes.json();
                 if (!designsRes.ok) throw new Error('Lỗi tải design.');
                 fulfillState.allDesigns = designsData.designs;
-                
                 fulfillState.isDataLoaded = true;
             }
             loader.classList.add('d-none');
@@ -249,14 +237,11 @@ window.initFulfillMangotee = async (orderId) => {
 
     lineItemsContainer.addEventListener('change', (e) => {
         if (e.target.classList.contains('mangotee-product-select')) {
-            const itemIndex = e.target.dataset.itemIndex;
             const selectedName = e.target.value;
-            const variantSelect = document.querySelector(`.mangotee-variant-select[data-item-index="${itemIndex}"]`);
-            
+            const card = e.target.closest('.line-item-card');
+            const variantSelect = card.querySelector('.mangotee-variant-select');
             variantSelect.innerHTML = '<option value="" selected disabled>-- Chọn biến thể --</option>';
-            
             const variantsForProduct = fulfillState.allVariants.filter(p => p.name === selectedName);
-
             variantsForProduct.forEach(variantWrapper => {
                 const variant = variantWrapper.variations[0];
                 const variantName = `${variant.color} - ${variant.size}`;
@@ -289,10 +274,8 @@ window.initFulfillMangotee = async (orderId) => {
         if (card && fulfillState.currentTarget.input) {
             const designUrl = card.dataset.designUrl;
             document.getElementById(fulfillState.currentTarget.input).value = designUrl;
-            
             const thumbContainer = document.getElementById(fulfillState.currentTarget.thumb);
-            thumbContainer.innerHTML = `<img src="${designUrl}" class="design-thumbnail" style="width: 38px; height: 38px; object-fit: contain; cursor: pointer; border: 1px solid #ddd;"/>`;
-
+            thumbContainer.innerHTML = `<img src="${designUrl}" class="design-thumbnail"/>`;
             designSelectModal.hide();
             fulfillState.currentTarget = {};
         }
@@ -303,51 +286,83 @@ window.initFulfillMangotee = async (orderId) => {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang gửi...';
         try {
-            const payload = {
+            const order_payload = {
                 order_id: document.getElementById('mangotee-order-id').value,
-                shipping_address: {
-                    name: document.getElementById('shipping-name').value,
-                    email: document.getElementById('shipping-email').value,
-                    phone: document.getElementById('shipping-phone').value,
-                    address_1: document.getElementById('shipping-address1').value,
-                    city: document.getElementById('shipping-city').value,
-                    state: document.getElementById('shipping-state').value,
-                    zip: document.getElementById('shipping-zip').value,
-                    country: document.getElementById('shipping-country').value,
-                },
-                line_items: []
+                facility_code: document.getElementById('mangotee-facility-code').value,
+                seller: "API_USER",
+                shipping_method: "standard",
+                order_source: "API",
+                FirstName: document.getElementById('shipping-first-name').value.trim(),
+                LastName: document.getElementById('shipping-last-name').value.trim(),
+                AddressLine1: document.getElementById('shipping-address1').value.trim(),
+                AddressLine2: "",
+                City: document.getElementById('shipping-city').value.trim(),
+                StateOrRegion: document.getElementById('shipping-state').value.trim(),
+                Zip: document.getElementById('shipping-zip').value.trim(),
+                CountryCode: document.getElementById('shipping-country').value.trim(),
+                Phone: document.getElementById('shipping-phone').value.trim(),
+                items: []
             };
+
+            const selectedPrinter = document.getElementById('mangotee-printer-select').value;
 
             for (const card of document.querySelectorAll('.line-item-card')) {
                 const variantSku = card.querySelector('.mangotee-variant-select').value;
-                const quantity = card.querySelector('input[type="number"]').value;
+                const quantity = card.querySelector('.mangotee-quantity-input').value;
                 const frontDesign = card.querySelector('[id^="front-input-"]').value;
                 const backDesign = card.querySelector('[id^="back-input-"]').value;
 
-                if (!variantSku || !frontDesign) {
-                    throw new Error("Vui lòng chọn đủ thông tin cho sản phẩm.");
-                }
+                if (!variantSku || !frontDesign) throw new Error("Vui lòng chọn đủ thông tin cho sản phẩm.");
                 
-                payload.line_items.push({
-                    variant_sku: variantSku,
-                    quantity: parseInt(quantity, 10),
-                    designs: { front: frontDesign, ...(backDesign && { back: backDesign }) }
+                // === SỬA LỖI LOGIC CUỐI CÙNG CHO PRINT_AREAS ===
+                let printAreasData = [];
+                if (selectedPrinter === 'VNEMB') {
+                    printAreasData = [{
+                        "area": "center_chest",
+                        "url": frontDesign,
+                        "tech": "normal"
+                    }];
+                }
+                // ===============================================
+
+                order_payload.items.push({
+                    sku: variantSku,
+                    quantity: String(quantity),
+                    front_url: frontDesign,
+                    mockup_front_url: "",
+                    back_url: backDesign || "",
+                    mockup_back_url: "",
+                    order_item_id: "",
+                    left_sleeve: "",
+                    right_sleeve: "",
+                    neck_label: "",
+                    print_areas: printAreasData, // Sử dụng biến đã được xử lý điều kiện
+                    order_type: "",
+                    production_config: ""
                 });
             }
-             if (payload.line_items.length === 0) {
-                throw new Error("Bạn phải thêm ít nhất một sản phẩm.");
-             }
+            if (order_payload.items.length === 0) throw new Error("Bạn phải thêm ít nhất một sản phẩm.");
+
+            const finalDataToServer = {
+                printer: document.getElementById('mangotee-printer-select').value,
+                payload: order_payload
+            };
+            
+            console.log('DEBUG PAYLOAD TO SERVER:', JSON.stringify(finalDataToServer, null, 2));
 
             const res = await fetch(`/orders/process_fulfillment/${orderId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(finalDataToServer)
             });
+
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.message || 'Lỗi khi gửi đơn hàng.');
+            
             showToast(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('fulfillModal')).hide();
             setTimeout(() => window.location.reload(), 1500);
+
         } catch (error) {
             showToast(error.message, 'danger');
             submitBtn.disabled = false;

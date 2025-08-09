@@ -277,9 +277,15 @@ def get_user_and_setting(provider_name):
 @login_required
 def process_fulfillment(order_id):
     order = get_visible_orders_query(current_user).filter(WooCommerceOrder.id == order_id).first_or_404()
-    payload = request.json
-    provider_name = 'mangotee'
     
+    data = request.json
+    printer_value = data.get('printer')
+    order_payload = data.get('payload')
+
+    if not printer_value or not order_payload:
+        return jsonify({"success": False, "message": "Dữ liệu gửi lên không hợp lệ."}), 400
+
+    provider_name = 'mangotee'
     user, setting = get_user_and_setting(provider_name)
     if not user: return jsonify({"success": False, "message": "Lỗi xác thực quyền."}), 403
     if not setting or not setting.api_key: return jsonify({"success": False, "message": f"Chưa cấu hình API Key cho {provider_name}."}), 400
@@ -289,7 +295,7 @@ def process_fulfillment(order_id):
         if not service:
             return jsonify({"success": False, "message": "Nhà cung cấp không được hỗ trợ."}), 404
 
-        success, message = service.create_order(payload)
+        success, message = service.create_order(order_payload, printer_value)
         
         if success:
             note_content = f"\n[Fulfilled by {provider_name.title()} - {message}]"
@@ -298,8 +304,8 @@ def process_fulfillment(order_id):
 
         return jsonify({"success": success, "message": message})
     except Exception as e:
+        current_app.logger.error(f"Error in process_fulfillment: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
-
 
 @orders_bp.route('/api/fulfillment_products/<provider_name>')
 @login_required
