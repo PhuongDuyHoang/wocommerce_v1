@@ -1,5 +1,11 @@
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
 <style>
     .design-thumbnail-container{width:42px;height:42px;display:flex;align-items:center;justify-content:center}.design-thumbnail{width:38px;height:38px;object-fit:contain;cursor:pointer;border:1px solid #dee2e6;border-radius:4px;background-color:#f8f9fa}#viewDesignModal .modal-content{background-color:transparent;border:none;box-shadow:none}#viewDesignModal .modal-header{position:absolute;top:-1rem;right:-1rem;z-index:1056;border-bottom:0}
+    /* Tùy chỉnh Select2 để vừa vặn hơn */
+    .select2-container--bootstrap-5 .select2-selection--single { height: calc(1.5em + .75rem + 2px) !important; padding: .375rem .75rem !important; }
+    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered { line-height: 1.5 !important; }
+    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow { height: calc(1.5em + .75rem) !important; }
 </style>
 <div class="modal-header">
     <h5 class="modal-title" id="fulfillModalLabel">
@@ -98,10 +104,11 @@
     </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 const fulfillState = {
-    allVariants: [],
-    productTypes: [],
+    allProducts: [], // Lưu tất cả sản phẩm
     allDesigns: [],
     productCardIndex: 0,
     isDataLoaded: false,
@@ -114,6 +121,7 @@ window.initFulfillMangotee = async (orderId) => {
     const submitBtn = document.getElementById('mangotee-submit-btn');
     const lineItemsContainer = document.getElementById('mangotee-line-items-container');
     const addProductBtn = document.getElementById('add-product-btn');
+    const printerSelect = document.getElementById('mangotee-printer-select');
     const designSelectModal = new bootstrap.Modal(document.getElementById('designSelectModal'));
     const viewDesignModal = new bootstrap.Modal(document.getElementById('viewDesignModal'));
     const designGrid = document.getElementById('design-grid');
@@ -167,89 +175,111 @@ window.initFulfillMangotee = async (orderId) => {
                 ]);
                 const productsData = await productsRes.json();
                 if (!productsRes.ok || !productsData.success) throw new Error(productsData.message || 'Lỗi tải sản phẩm NCC.');
-                fulfillState.allVariants = productsData.data.products.filter(p => p && p.variations && p.variations.length > 0 && p.variations[0].sku);
-                const productNames = new Set(fulfillState.allVariants.map(p => p.name));
-                fulfillState.productTypes = [...productNames];
+                fulfillState.allProducts = productsData.data.products.filter(p => p && p.variations && p.variations.length > 0 && p.variations[0].sku);
                 const designsData = await designsRes.json();
                 if (!designsRes.ok) throw new Error('Lỗi tải design.');
                 fulfillState.allDesigns = designsData.designs;
                 fulfillState.isDataLoaded = true;
             }
+            // Di chuyển việc ẩn loader và hiện form lên trước khi thực hiện các tác vụ có thể gây lỗi
             loader.classList.add('d-none');
             form.classList.remove('d-none');
             submitBtn.disabled = false;
             renderDesigns();
             addProductCard();
         } catch (error) {
-            loader.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+            // Hiển thị lỗi ngay trong modal body thay vì loader
+            const modalBody = document.querySelector('#fulfillModal .modal-body');
+            modalBody.innerHTML = `<div class="alert alert-danger"><b>Khởi tạo thất bại:</b> ${error.message}<br>Vui lòng đóng và thử lại.</div>`;
         }
+    }
+    
+    function getProductOptionsForPrinter(selectedPrinter) {
+        const filteredProducts = fulfillState.allProducts.filter(p => p.printer === selectedPrinter);
+        const productNames = [...new Set(filteredProducts.map(p => p.name))];
+        return productNames.map(name => `<option value="${name}">${name}</option>`).join('');
     }
 
     function addProductCard() {
         const index = fulfillState.productCardIndex++;
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'card mb-3 line-item-card';
+        const productOptions = getProductOptionsForPrinter(printerSelect.value);
+
         cardWrapper.innerHTML = `
             <div class="card-body">
                 <button type="button" class="btn-close float-end remove-product-btn"></button>
                 <div class="row g-2 align-items-end">
-                    <div class="col-md-6">
-                        <label class="form-label small">1. Chọn loại sản phẩm</label>
-                        <select class="form-select form-select-sm mangotee-product-select" data-item-index="${index}" required>
-                            <option value="" selected disabled>-- Chọn --</option>
-                            ${fulfillState.productTypes.map(name => `<option value="${name}">${name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small">2. Chọn biến thể (Màu/Size)</label>
-                        <select class="form-select form-select-sm mangotee-variant-select" data-item-index="${index}" disabled required>
-                            <option value="">-- Chọn loại SP trước --</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label small">Số lượng</label>
-                        <input type="number" class="form-control form-control-sm mangotee-quantity-input" value="1" min="1" required>
-                    </div>
-                    <div class="col-md-6 mt-3">
-                        <label class="form-label small">3. Design mặt trước</label>
-                        <div class="d-flex align-items-center">
-                            <div class="design-thumbnail-container me-2" id="front-thumb-container-${index}"></div>
-                            <div class="input-group">
-                                <button class="btn btn-primary select-design-btn" type="button" data-target-input="front-input-${index}" data-target-thumb="front-thumb-container-${index}">Chọn</button>
-                                <input type="text" class="form-control form-control-sm design-input" id="front-input-${index}" required>
-                            </div>
-                        </div>
-                    </div>
-                     <div class="col-md-6 mt-3">
-                        <label class="form-label small">4. Design mặt sau (nếu có)</label>
-                         <div class="d-flex align-items-center">
-                            <div class="design-thumbnail-container me-2" id="back-thumb-container-${index}"></div>
-                            <div class="input-group">
-                                <button class="btn btn-primary select-design-btn" type="button" data-target-input="back-input-${index}" data-target-thumb="back-thumb-container-${index}">Chọn</button>
-                                <input type="text" class="form-control form-control-sm design-input" id="back-input-${index}">
-                            </div>
-                        </div>
-                    </div>
+                    <div class="col-md-6"><label class="form-label small">1. Chọn loại sản phẩm</label><select class="form-select mangotee-product-select" data-index="${index}" required><option value="" selected disabled>-- Chọn --</option>${productOptions}</select></div>
+                    <div class="col-md-4"><label class="form-label small">2. Chọn biến thể (Màu/Size)</label><select class="form-select mangotee-variant-select" data-index="${index}" disabled required><option value="">-- Chọn loại SP trước --</option></select></div>
+                    <div class="col-md-2"><label class="form-label small">Số lượng</label><input type="number" class="form-control mangotee-quantity-input" value="1" min="1" required></div>
+                    <div class="col-md-6 mt-3"><label class="form-label small">3. Design mặt trước</label><div class="d-flex align-items-center"><div class="design-thumbnail-container me-2" id="front-thumb-container-${index}"></div><div class="input-group"><button class="btn btn-primary select-design-btn" type="button" data-target-input="front-input-${index}" data-target-thumb="front-thumb-container-${index}">Chọn</button><input type="text" class="form-control form-control-sm design-input" id="front-input-${index}" required></div></div></div>
+                    <div class="col-md-6 mt-3"><label class="form-label small">4. Design mặt sau (nếu có)</label><div class="d-flex align-items-center"><div class="design-thumbnail-container me-2" id="back-thumb-container-${index}"></div><div class="input-group"><button class="btn btn-primary select-design-btn" type="button" data-target-input="back-input-${index}" data-target-thumb="back-thumb-container-${index}">Chọn</button><input type="text" class="form-control form-control-sm design-input" id="back-input-${index}"></div></div></div>
                 </div>
             </div>`;
         lineItemsContainer.appendChild(cardWrapper);
+
+        // === NÂNG CẤP: Bọc trong try...catch để không làm treo giao diện ===
+        try {
+            if (typeof $ === 'undefined') { throw new Error("jQuery is not loaded."); }
+            $(`.mangotee-product-select[data-index="${index}"]`).select2({ theme: "bootstrap-5", width: '100%', dropdownParent: $('#fulfillModal') });
+            $(`.mangotee-variant-select[data-index="${index}"]`).select2({ theme: "bootstrap-5", width: '100%', dropdownParent: $('#fulfillModal') });
+        } catch (e) {
+            console.error("Failed to initialize Select2, falling back to standard dropdowns. Error:", e.message);
+            // Không cần làm gì thêm, nó sẽ tự động hoạt động như dropdown thường
+        }
+    }
+    
+    function updateAllProductSelects() {
+        const productOptions = getProductOptionsForPrinter(printerSelect.value);
+        document.querySelectorAll('.mangotee-product-select').forEach(select => {
+            const currentValue = select.value;
+            const card = select.closest('.line-item-card');
+            const variantSelect = card.querySelector('.mangotee-variant-select');
+
+            try {
+                if (typeof $ === 'undefined') { throw new Error("jQuery is not loaded."); }
+                $(select).empty().append(`<option value="" selected disabled>-- Chọn --</option>${productOptions}`).val(currentValue).trigger('change');
+                $(variantSelect).empty().append('<option value="">-- Chọn loại SP trước --</option>').val('').trigger('change').prop('disabled', true);
+            } catch (e) {
+                // Fallback cho trình duyệt không tải được jQuery
+                select.innerHTML = `<option value="" selected disabled>-- Chọn --</option>${productOptions}`;
+                select.value = currentValue;
+                variantSelect.innerHTML = '<option value="">-- Chọn loại SP trước --</option>';
+                variantSelect.disabled = true;
+            }
+        });
     }
 
-    lineItemsContainer.addEventListener('change', (e) => {
-        if (e.target.classList.contains('mangotee-product-select')) {
+    printerSelect.addEventListener('change', updateAllProductSelects);
+
+    // Sử dụng event delegation để xử lý các element được tạo động, có fallback nếu jQuery lỗi
+    lineItemsContainer.addEventListener('change', e => {
+        if(e.target.classList.contains('mangotee-product-select')) {
             const selectedName = e.target.value;
             const card = e.target.closest('.line-item-card');
             const variantSelect = card.querySelector('.mangotee-variant-select');
-            variantSelect.innerHTML = '<option value="" selected disabled>-- Chọn biến thể --</option>';
-            const variantsForProduct = fulfillState.allVariants.filter(p => p.name === selectedName);
+            
+            const variantsForProduct = fulfillState.allProducts.filter(p => p.name === selectedName && p.printer === printerSelect.value);
+            
+            let variantOptions = '';
             variantsForProduct.forEach(variantWrapper => {
-                const variant = variantWrapper.variations[0];
-                const variantName = `${variant.color} - ${variant.size}`;
-                variantSelect.innerHTML += `<option value="${variant.sku}">${variantName}</option>`;
+                variantWrapper.variations.forEach(variant => {
+                    const variantName = `${variant.color} - ${variant.size}`;
+                    variantOptions += `<option value="${variant.sku}">${variantName}</option>`;
+                });
             });
-            variantSelect.disabled = false;
+
+            try {
+                 if (typeof $ === 'undefined') { throw new Error("jQuery is not loaded."); }
+                 $(variantSelect).empty().append(`<option value="" selected disabled>-- Chọn biến thể --</option>${variantOptions}`).prop('disabled', false).trigger('change');
+            } catch (e) {
+                variantSelect.innerHTML = `<option value="" selected disabled>-- Chọn biến thể --</option>${variantOptions}`;
+                variantSelect.disabled = false;
+            }
         }
     });
+
 
     addProductBtn.addEventListener('click', addProductCard);
     
@@ -289,7 +319,7 @@ window.initFulfillMangotee = async (orderId) => {
             const order_payload = {
                 order_id: document.getElementById('mangotee-order-id').value,
                 facility_code: document.getElementById('mangotee-facility-code').value,
-                seller: "API_USER",
+                seller: "",
                 shipping_method: "standard",
                 order_source: "API",
                 FirstName: document.getElementById('shipping-first-name').value.trim(),
@@ -307,6 +337,7 @@ window.initFulfillMangotee = async (orderId) => {
             const selectedPrinter = document.getElementById('mangotee-printer-select').value;
 
             for (const card of document.querySelectorAll('.line-item-card')) {
+                // Đọc giá trị từ Select2 hoặc select thường
                 const variantSku = card.querySelector('.mangotee-variant-select').value;
                 const quantity = card.querySelector('.mangotee-quantity-input').value;
                 const frontDesign = card.querySelector('[id^="front-input-"]').value;
@@ -314,7 +345,6 @@ window.initFulfillMangotee = async (orderId) => {
 
                 if (!variantSku || !frontDesign) throw new Error("Vui lòng chọn đủ thông tin cho sản phẩm.");
                 
-                // === SỬA LỖI LOGIC CUỐI CÙNG CHO PRINT_AREAS ===
                 let printAreasData = [];
                 if (selectedPrinter === 'VNEMB') {
                     printAreasData = [{
@@ -323,7 +353,6 @@ window.initFulfillMangotee = async (orderId) => {
                         "tech": "normal"
                     }];
                 }
-                // ===============================================
 
                 order_payload.items.push({
                     sku: variantSku,
@@ -336,7 +365,7 @@ window.initFulfillMangotee = async (orderId) => {
                     left_sleeve: "",
                     right_sleeve: "",
                     neck_label: "",
-                    print_areas: printAreasData, // Sử dụng biến đã được xử lý điều kiện
+                    print_areas: printAreasData,
                     order_type: "",
                     production_config: ""
                 });
