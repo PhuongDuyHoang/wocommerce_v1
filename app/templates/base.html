@@ -185,6 +185,20 @@
         .sidebar.collapsed .nav-link[data-bs-toggle="collapse"]::after {
             display: none;
         }
+        /* ----- THÊM ĐOẠN NÀY ĐỂ ẨN SIDEBAR KHI CẦN ----- */
+        body.no-sidebar .sidebar,
+        body.no-sidebar .sidebar-toggle-btn {
+            display: none;
+        }
+
+        body.no-sidebar .main-content {
+            padding-left: 0;
+        }
+
+        body.no-sidebar .top-navbar {
+            left: 0;
+        }
+        /* ----- HẾT PHẦN THÊM ----- */
     </style>
     </head>
 <body class="{% block body_class %}{% endblock %}">
