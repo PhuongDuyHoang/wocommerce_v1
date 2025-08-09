@@ -39,6 +39,14 @@
     #imageModal .modal-content { background-color: transparent; border: none; box-shadow: none; }
     #refund-summary-list { list-style-type: none; padding-left: 0; }
     #refund-summary-list li { display: flex; justify-content: space-between; padding: 0.5rem 0; }
+    /* <<< THÊM MỚI: CSS cho khung cuộn lịch sử hoàn tiền >>> */
+    .refund-history-container {
+        max-height: 150px; /* Giới hạn chiều cao tối đa */
+        overflow-y: auto;  /* Tự động hiện thanh cuộn dọc khi cần */
+        border: 1px solid #dee2e6;
+        border-radius: .25rem;
+        padding: 0;
+    }
 </style>
 {% endblock %}
 
@@ -176,10 +184,12 @@
                         <input type="text" class="form-control" id="refund-reason-input" placeholder="VD: Khách hàng yêu cầu">
                     </div>
                     <h6 class="mt-4">Lịch sử Hoàn tiền</h6>
-                    <table class="table table-sm table-bordered">
-                        <thead><tr><th>Ngày</th><th>Lý do</th><th class="text-end">Số tiền</th></tr></thead>
-                        <tbody id="refund-history-body"></tbody>
-                    </table>
+                    <div class="refund-history-container">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead><tr><th>Ngày</th><th>Lý do</th><th class="text-end">Số tiền</th></tr></thead>
+                            <tbody id="refund-history-body"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -421,16 +431,68 @@ document.addEventListener('DOMContentLoaded', function() {
         checkbox.addEventListener('change', updateExportButtonState);
     });
 
-    if (exportBtn) {
+     if (exportBtn) {
         exportBtn.addEventListener('click', function() {
+            const originalBtnText = this.innerHTML; // Lưu lại nội dung gốc của nút
             const selectedIds = Array.from(document.querySelectorAll('.order-checkbox:checked'))
                                      .map(cb => cb.value);
-            
-            if (selectedIds.length > 0) {
-                const baseUrl = "{{ url_for('orders.export_orders') }}";
-                const exportUrl = `${baseUrl}?ids=${selectedIds.join(',')}`;
-                window.location.href = exportUrl;
-            }
+
+            if (selectedIds.length === 0) return;
+
+            // Vô hiệu hóa nút và hiển thị trạng thái đang xử lý
+            this.disabled = true;
+            this.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang xử lý...`;
+            showToast('Đang chuẩn bị file export, vui lòng chờ...', 'info');
+
+            const baseUrl = "{{ url_for('orders.export_orders') }}";
+            const exportUrl = `${baseUrl}?ids=${selectedIds.join(',')}`;
+
+            // Dùng fetch để gọi tới URL export
+            fetch(exportUrl)
+                .then(response => {
+                    // Nếu server trả về lỗi, ném ra lỗi để nhảy vào khối .catch
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok.');
+                    }
+                    // Lấy tên file từ header 'Content-Disposition'
+                    const disposition = response.headers.get('content-disposition');
+                    let filename = 'exported_orders.xlsx'; // Tên mặc định
+                    if (disposition && disposition.indexOf('attachment') !== -1) {
+                        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                        const matches = filenameRegex.exec(disposition);
+                        if (matches != null && matches[1]) {
+                            filename = matches[1].replace(/['"]/g, '');
+                        }
+                    }
+                    return response.blob().then(blob => ({ blob, filename }));
+                })
+                .then(({ blob, filename }) => {
+                    // Tạo một URL tạm thời cho file blob
+                    const url = window.URL.createObjectURL(blob);
+                    // Tạo một thẻ <a> ẩn để kích hoạt download
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename; // Đặt tên file download
+                    document.body.appendChild(a);
+                    a.click(); // Kích hoạt download
+                    
+                    // Dọn dẹp
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                    
+                    // Hiển thị thông báo thành công
+                    showToast('Export thành công! File đang được tải xuống.', 'success');
+                })
+                .catch(error => {
+                    console.error('Error during export:', error);
+                    showToast('Có lỗi xảy ra khi export. Vui lòng thử lại.', 'danger');
+                })
+                .finally(() => {
+                    // Khôi phục lại trạng thái ban đầu của nút sau khi hoàn tất (dù thành công hay thất bại)
+                    this.disabled = false;
+                    this.innerHTML = originalBtnText;
+                });
         });
     }
     

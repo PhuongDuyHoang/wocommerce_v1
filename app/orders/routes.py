@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from woocommerce import API
 from decimal import Decimal
 import json
-import html # <<< THÊM MỚI: Cần thiết để làm sạch dữ liệu
+import html 
 from jinja2.exceptions import TemplateNotFound
 import io
 import datetime
@@ -296,6 +296,7 @@ def api_get_fulfillment_products(provider_name):
     return jsonify({"success": success, "message": "OK" if success else data, "data": data if success else None})
 
 
+# <<< SỬA ĐỔI: TOÀN BỘ HÀM export_orders ĐÃ ĐƯỢC CẬP NHẬT ĐỂ LẤY LINK SẢN PHẨM VÀ ẢNH >>>
 @orders_bp.route('/export')
 @login_required
 def export_orders():
@@ -310,8 +311,10 @@ def export_orders():
     ).filter(WooCommerceOrder.id.in_(order_ids)).all()
 
     api_clients = {}
+    product_details_cache = {} # Cache để tránh gọi API cho cùng 1 sản phẩm nhiều lần
     all_rows_data = []
 
+    # Lấy dữ liệu thô của các đơn hàng từ API
     raw_orders_data = []
     for order_db in orders_from_db:
         if not order_db.store:
@@ -337,14 +340,17 @@ def export_orders():
             response = wcapi.get(f"orders/{order_db.wc_order_id}")
             response.raise_for_status()
             order_api_data = response.json()
-            order_api_data['_store_url'] = order_db.store.store_url 
+            order_api_data['_store_url'] = order_db.store.store_url
+            order_api_data['_wcapi'] = wcapi # Gắn wcapi vào để dùng lại sau này
             raw_orders_data.append(order_api_data)
         except Exception as e:
             current_app.logger.error(f"Failed to get data for WC Order ID {order_db.wc_order_id}: {e}")
 
+    # Xử lý dữ liệu và tạo các hàng cho Excel
     for order_data in raw_orders_data:
         billing_info = order_data.get('billing', {})
-        
+        wcapi = order_data.get('_wcapi')
+
         common_info = {
             "DOMAIN": urlparse(order_data.get('_store_url', '')).netloc,
             "Date Order": order_data.get('date_created', '').replace('T', ' '),
@@ -364,15 +370,36 @@ def export_orders():
         }
 
         for item in order_data.get('line_items', []):
+            product_id = item.get('product_id')
+            product_url = ''
+            image_url = ''
+
+            # <<< SỬA ĐỔI: Lấy thông tin chi tiết của sản phẩm để có URL và ảnh >>>
+            if product_id and wcapi:
+                # Kiểm tra cache trước khi gọi API
+                if product_id in product_details_cache:
+                    product_url = product_details_cache[product_id]['url']
+                    image_url = product_details_cache[product_id]['image']
+                else:
+                    try:
+                        res_product = wcapi.get(f"products/{product_id}")
+                        res_product.raise_for_status()
+                        product_data = res_product.json()
+                        product_url = product_data.get('permalink', '')
+                        images = product_data.get('images', [])
+                        if images:
+                            image_url = images[0].get('src', '')
+                        # Lưu vào cache
+                        product_details_cache[product_id] = {'url': product_url, 'image': image_url}
+                    except Exception as e:
+                        current_app.logger.warning(f"Could not fetch details for product_id {product_id}: {e}")
+
             meta_data = item.get('meta_data', [])
             variations = []
             for meta in meta_data:
                 display_value = meta.get('display_value')
-                # <<< SỬA ĐỔI: Thêm logic làm sạch dữ liệu biến thể >>>
                 if isinstance(display_value, str):
-                    # Giải mã các ký tự HTML (vd: &#9632; -> ■)
                     cleaned_value = html.unescape(display_value)
-                    # Loại bỏ ký tự khối vuông và các khoảng trắng ở đầu
                     cleaned_value = cleaned_value.lstrip('■ \t\n\r')
                     variations.append(cleaned_value)
             
@@ -382,8 +409,8 @@ def export_orders():
             row.update({
                 "Item Price": item.get('price', ''),
                 "TITLE PRODUCT": item.get('name', ''),
-                "URl PRODUCT": '', 
-                "IMAGE": '',       
+                "URl PRODUCT": product_url, 
+                "IMAGE": image_url,       
                 "SKU PRODUCT": item.get('sku', ''),
                 "VAR 1": padded_variations[0],
                 "VAR 2": padded_variations[1],
