@@ -70,7 +70,6 @@
 <script>
 window.initFulfillMangotee = (orderId) => {
     const fulfillState = { productMap: new Map(), allDesigns: [], productCardIndex: 0, isDataLoaded: false, currentTarget: {} };
-    
     const loader = document.getElementById('mangotee-loader');
     const form = document.getElementById('mangotee-form');
     const submitBtn = document.getElementById('mangotee-submit-btn');
@@ -83,10 +82,9 @@ window.initFulfillMangotee = (orderId) => {
     const designSearchInput = document.getElementById('design-search-input');
     const designSearchBtn = document.getElementById('design-search-btn');
 
-    const showToast = (message, category = 'info') => {
-        document.getElementById('fulfillModal').dispatchEvent(new CustomEvent('show-toast', { detail: { message, category }, bubbles: true }));
-    };
-    
+    // SỬA LỖI: Không cần định nghĩa lại showToast, chỉ cần gọi hàm toàn cục
+    // có sẵn từ manage_orders.html.
+
     const populateShippingInfo = (data) => {
         if (!data) return;
         const shipping = data.shipping_address || {};
@@ -107,15 +105,8 @@ window.initFulfillMangotee = (orderId) => {
     const renderDesigns = (query = '') => {
         const filteredDesigns = fulfillState.allDesigns.filter(d => d.name.toLowerCase().includes(query.toLowerCase()));
         designGrid.innerHTML = filteredDesigns.map(design => `
-            <div class="col">
-                <div class="card h-100" data-design-url="${design.image_url}" style="cursor: pointer;">
-                    <div class="card-img-top-container">
-                        <img src="${design.image_url}" class="card-img-top" alt="${design.name}" loading="lazy">
-                        <span class="view-design-btn" data-view-url="${design.image_url}"><i class="bi bi-eye-fill" style="pointer-events: none;"></i></span>
-                    </div>
-                    <div class="card-body p-2"><p class="card-text small text-truncate" title="${design.name}">${design.name}</p></div>
-                </div>
-            </div>`).join('') || '<p class="text-muted col-12">Không tìm thấy design nào.</p>';
+            <div class="col"><div class="card h-100" data-design-url="${design.image_url}" style="cursor: pointer;"><div class="card-img-top-container"><img src="${design.image_url}" class="card-img-top" alt="${design.name}" loading="lazy"><span class="view-design-btn" data-view-url="${design.image_url}"><i class="bi bi-eye-fill" style="pointer-events: none;"></i></span></div><div class="card-body p-2"><p class="card-text small text-truncate" title="${design.name}">${design.name}</p></div></div></div>`
+        ).join('') || '<p class="text-muted col-12">Không tìm thấy design nào.</p>';
     };
 
     const initialize = async () => {
@@ -158,17 +149,7 @@ window.initFulfillMangotee = (orderId) => {
         const index = fulfillState.productCardIndex++;
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'card mb-3 line-item-card';
-        cardWrapper.innerHTML = `
-            <div class="card-body">
-                <button type="button" class="btn-close float-end remove-product-btn"></button>
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-5"><label class="form-label small">1. Loại sản phẩm</label><div class="autocomplete-container"><input type="text" class="form-control product-type-input" placeholder="Gõ để tìm..." autocomplete="off" required><input type="hidden" class="selected-product-name"><div class="autocomplete-items dropdown-menu w-100"></div></div></div>
-                    <div class="col-md-5"><label class="form-label small">2. Biến thể (Màu/Size)</label><div class="autocomplete-container"><input type="text" class="form-control variant-input" placeholder="Chọn SP trước" autocomplete="off" required disabled><input type="hidden" class="variant-sku-input" required><div class="autocomplete-items dropdown-menu w-100"></div></div></div>
-                    <div class="col-md-2"><label class="form-label small">Số lượng</label><input type="number" class="form-control mangotee-quantity-input" value="1" min="1" required></div>
-                    <div class="col-md-6 mt-3"><label class="form-label small">3. Design mặt trước</label><div class="d-flex align-items-center"><div class="design-thumbnail-container me-2" id="front-thumb-container-${index}"></div><div class="input-group"><button class="btn btn-primary select-design-btn" type="button" data-target-input="front-input-${index}" data-target-thumb="front-thumb-container-${index}">Chọn</button><input type="text" class="form-control form-control-sm design-input" id="front-input-${index}" required></div></div></div>
-                    <div class="col-md-6 mt-3"><label class="form-label small">4. Design mặt sau (nếu có)</label><div class="d-flex align-items-center"><div class="design-thumbnail-container me-2" id="back-thumb-container-${index}"></div><div class="input-group"><button class="btn btn-primary select-design-btn" type="button" data-target-input="back-input-${index}" data-target-thumb="back-thumb-container-${index}">Chọn</button><input type="text" class="form-control form-control-sm design-input" id="back-input-${index}"></div></div></div>
-                </div>
-            </div>`;
+        cardWrapper.innerHTML = `<div class="card-body"><button type="button" class="btn-close float-end remove-product-btn"></button><div class="row g-2 align-items-end"><div class="col-md-5"><label class="form-label small">1. Loại sản phẩm</label><div class="autocomplete-container"><input type="text" class="form-control product-type-input" placeholder="Gõ để tìm..." autocomplete="off" required><input type="hidden" class="selected-product-name"><div class="autocomplete-items dropdown-menu w-100"></div></div></div><div class="col-md-5"><label class="form-label small">2. Biến thể (Màu/Size)</label><div class="autocomplete-container"><input type="text" class="form-control variant-input" placeholder="Chọn SP trước" autocomplete="off" required disabled><input type="hidden" class="variant-sku-input" required><div class="autocomplete-items dropdown-menu w-100"></div></div></div><div class="col-md-2"><label class="form-label small">Số lượng</label><input type="number" class="form-control mangotee-quantity-input" value="1" min="1" required></div><div class="col-md-6 mt-3"><label class="form-label small">3. Design mặt trước</label><div class="d-flex align-items-center"><div class="design-thumbnail-container me-2" id="front-thumb-container-${index}"></div><div class="input-group"><button class="btn btn-primary select-design-btn" type="button" data-target-input="front-input-${index}" data-target-thumb="front-thumb-container-${index}">Chọn</button><input type="text" class="form-control form-control-sm design-input" id="front-input-${index}" required></div></div></div><div class="col-md-6 mt-3"><label class="form-label small">4. Design mặt sau (nếu có)</label><div class="d-flex align-items-center"><div class="design-thumbnail-container me-2" id="back-thumb-container-${index}"></div><div class="input-group"><button class="btn btn-primary select-design-btn" type="button" data-target-input="back-input-${index}" data-target-thumb="back-thumb-container-${index}">Chọn</button><input type="text" class="form-control form-control-sm design-input" id="back-input-${index}"></div></div></div></div></div>`;
         lineItemsContainer.appendChild(cardWrapper);
     };
 
@@ -189,31 +170,23 @@ window.initFulfillMangotee = (orderId) => {
             dropdown.classList.add('show');
         } else { dropdown.classList.remove('show'); }
     };
-    
-    // <<< HÀM ĐÃ SỬA LỖI ĐỂ LỌC THEO PRINTER >>>
     const getProductTypeSource = (input) => {
         const query = input.value.toLowerCase();
         const selectedPrinter = printerSelect.value;
-        const productNames = [...new Set([...fulfillState.productMap.keys()]
-            .filter(key => key.startsWith(`${selectedPrinter}|`))
-            .map(key => key.split('|')[1])
-        )];
-        return productNames
-            .filter(name => name.toLowerCase().includes(query))
-            .map(name => ({
-                displayText: name,
-                onSelect: (inputEl) => {
-                    const card = inputEl.closest('.line-item-card');
-                    inputEl.value = name;
-                    card.querySelector('.selected-product-name').value = name;
-                    const variantInput = card.querySelector('.variant-input');
-                    variantInput.disabled = false;
-                    variantInput.placeholder = 'Gõ để tìm biến thể...';
-                    variantInput.value = ''; card.querySelector('.variant-sku-input').value = ''; variantInput.focus();
-                }
-            }));
+        const productNames = [...new Set([...fulfillState.productMap.keys()].filter(key => key.startsWith(`${selectedPrinter}|`)).map(key => key.split('|')[1]))];
+        return productNames.filter(name => name.toLowerCase().includes(query)).map(name => ({
+            displayText: name,
+            onSelect: (inputEl) => {
+                const card = inputEl.closest('.line-item-card');
+                inputEl.value = name;
+                card.querySelector('.selected-product-name').value = name;
+                const variantInput = card.querySelector('.variant-input');
+                variantInput.disabled = false;
+                variantInput.placeholder = 'Gõ để tìm biến thể...';
+                variantInput.value = ''; card.querySelector('.variant-sku-input').value = ''; variantInput.focus();
+            }
+        }));
     };
-    
     const getVariantSource = (input) => {
         const card = input.closest('.line-item-card');
         const productName = card.querySelector('.selected-product-name').value;
@@ -223,27 +196,21 @@ window.initFulfillMangotee = (orderId) => {
         const variants = fulfillState.productMap.get(`${selectedPrinter}|${productName}`) || [];
         return variants.filter(v => v.searchText.includes(query)).map(variant => ({
             displayText: variant.displayText,
-            onSelect: (inputEl) => {
-                inputEl.value = variant.displayText;
-                card.querySelector('.variant-sku-input').value = variant.sku;
-            }
+            onSelect: (inputEl) => { inputEl.value = variant.displayText; card.querySelector('.variant-sku-input').value = variant.sku; }
         }));
     };
 
     addProductBtn.addEventListener('click', addProductCard);
-    
-    // <<< EVENT LISTENER ĐÃ SỬA LỖI ĐỂ RESET KHI ĐỔI PRINTER >>>
-    printerSelect.addEventListener('change', () => {
-        showToast('Printer đã thay đổi, vui lòng chọn lại sản phẩm và biến thể.', 'warning');
-        lineItemsContainer.innerHTML = '';
-        addProductCard();
-    });
-
+    printerSelect.addEventListener('change', () => { showToast('Printer đã thay đổi, vui lòng chọn lại sản phẩm.', 'warning'); lineItemsContainer.innerHTML = ''; addProductCard(); });
     designSearchBtn.addEventListener('click', () => renderDesigns(designSearchInput.value));
-    designSearchInput.addEventListener('keyup', e => { if (e.key === 'Enter') renderDesigns(designSearchInput.value) });
+    designSearchInput.addEventListener('keyup', e => { if (e.key === 'Enter') renderDesigns(e.target.value) });
 
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.autocomplete-container')) document.querySelectorAll('.autocomplete-items.show').forEach(d => d.classList.remove('show'));
+    document.addEventListener('click', e => { if (!e.target.closest('.autocomplete-container')) document.querySelectorAll('.autocomplete-items.show').forEach(d => d.classList.remove('show')); });
+    
+    // SỬA LỖI: Thêm listener 'focusin' để xổ autocomplete khi click
+    lineItemsContainer.addEventListener('focusin', e => {
+        if (e.target.classList.contains('product-type-input')) handleAutocomplete(e.target, getProductTypeSource);
+        if (e.target.classList.contains('variant-input')) handleAutocomplete(e.target, getVariantSource);
     });
     lineItemsContainer.addEventListener('input', e => {
         if (e.target.classList.contains('product-type-input')) handleAutocomplete(e.target, getProductTypeSource);
@@ -260,11 +227,7 @@ window.initFulfillMangotee = (orderId) => {
     });
     designGrid.addEventListener('click', e => {
         const viewBtn = e.target.closest('.view-design-btn');
-        if (viewBtn) {
-            document.getElementById('viewDesignImage').src = viewBtn.dataset.viewUrl;
-            viewDesignModal.show();
-            return;
-        }
+        if (viewBtn) { document.getElementById('viewDesignImage').src = viewBtn.dataset.viewUrl; viewDesignModal.show(); return; }
         const card = e.target.closest('.card[data-design-url]');
         if (card && fulfillState.currentTarget.input) {
             document.getElementById(fulfillState.currentTarget.input).value = card.dataset.designUrl;
@@ -307,10 +270,12 @@ window.initFulfillMangotee = (orderId) => {
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.message || 'Lỗi gửi đơn hàng.');
+            // Gọi hàm showToast toàn cục
             showToast(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('fulfillModal')).hide();
             setTimeout(() => window.location.reload(), 1500);
         } catch (error) {
+            // Gọi hàm showToast toàn cục
             showToast(error.message, 'danger');
         } finally {
             submitBtn.disabled = false;
