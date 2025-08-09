@@ -7,6 +7,8 @@ Flask-Login==0.6.3
 Flask-WTF==1.2.1
 Werkzeug==3.0.3
 Jinja2==3.1.4
+openpyxl==3.1.5
+gunicorn
 
 # --- Database Connector ---
 # For PostgreSQL. If you use another DB (MySQL, SQLite), change this library.

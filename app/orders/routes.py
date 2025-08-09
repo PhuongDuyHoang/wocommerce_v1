@@ -1,13 +1,18 @@
 # app/orders/routes.py
 
-from flask import render_template, request, jsonify, abort, current_app
+from flask import render_template, request, jsonify, abort, current_app, Response
 from flask_login import login_required, current_user
 from sqlalchemy import or_, and_, desc, select
+from sqlalchemy.orm import joinedload
 from woocommerce import API
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal
 import json
-import requests
+import html # <<< THÊM MỚI: Cần thiết để làm sạch dữ liệu
 from jinja2.exceptions import TemplateNotFound
+import io
+import datetime
+import openpyxl
+from urllib.parse import urlparse
 
 from . import orders_bp
 from app import db
@@ -23,6 +28,7 @@ from app.services import get_visible_orders_query, get_visible_stores_query
 from app.services.fulfillment_service import get_fulfillment_service
 
 
+# ... (Tất cả các hàm từ manage_all_orders đến api_get_fulfillment_products giữ nguyên không đổi) ...
 @orders_bp.route('/')
 @login_required
 def manage_all_orders():
@@ -30,8 +36,10 @@ def manage_all_orders():
     base_query = db.session.query(WooCommerceOrder, WooCommerceStore, AppUser.username.label('owner_username'))\
         .join(WooCommerceStore, WooCommerceOrder.store_id == WooCommerceStore.id)\
         .outerjoin(AppUser, WooCommerceStore.user_id == AppUser.id)
+    
     visible_orders_subquery = get_visible_orders_query(current_user).with_entities(WooCommerceOrder.id).subquery()
     base_query = base_query.filter(WooCommerceOrder.id.in_(select(visible_orders_subquery)))
+
     search_query = request.args.get('search_query')
     selected_store_id = request.args.get('store_id', type=int)
     selected_status = request.args.get('status')
@@ -39,6 +47,8 @@ def manage_all_orders():
     end_date = request.args.get('end_date')
     selected_admin_id = request.args.get('admin_id', type=int)
     selected_user_id = request.args.get('user_id', type=int)
+    selected_fulfillment_status = request.args.get('fulfillment_status')
+
     if search_query:
         search_term = f"%{search_query}%"
         try:
@@ -63,6 +73,7 @@ def manage_all_orders():
                     OrderLineItem.sku.ilike(search_term)
                 ))
             ))
+    
     if selected_store_id:
         base_query = base_query.filter(WooCommerceOrder.store_id == selected_store_id)
     if selected_status:
@@ -71,6 +82,15 @@ def manage_all_orders():
         base_query = base_query.filter(WooCommerceOrder.order_created_at >= start_date)
     if end_date:
         base_query = base_query.filter(WooCommerceOrder.order_created_at <= end_date)
+
+    if selected_fulfillment_status == 'fulfilled':
+        base_query = base_query.filter(WooCommerceOrder.note.ilike('%[Fulfilled by%'))
+    elif selected_fulfillment_status == 'not_fulfilled':
+        base_query = base_query.filter(or_(
+            WooCommerceOrder.note == None,
+            WooCommerceOrder.note.notilike('%[Fulfilled by%')
+        ))
+
     user_ids_to_filter = None
     if current_user.is_super_admin() and (selected_admin_id or selected_user_id):
         if selected_user_id:
@@ -81,16 +101,19 @@ def manage_all_orders():
                 user_ids_to_filter = [child.id for child in admin.children] + [admin.id]
     elif current_user.is_admin() and selected_user_id:
         user_ids_to_filter = [selected_user_id]
+    
     if user_ids_to_filter:
         base_query = base_query.filter(WooCommerceStore.user_id.in_(user_ids_to_filter))
+
     orders_pagination = base_query.order_by(desc(WooCommerceOrder.order_created_at)).paginate(page=page, per_page=30, error_out=False)
+    
     orders_with_details = []
     for order_obj, store_obj, owner_username_str in orders_pagination.items:
         order_obj.store = store_obj
         order_obj.owner_username = owner_username_str or 'Chưa gán'
-        # Kiểm tra xem trong note có dấu hiệu đã fulfill chưa và thêm thuộc tính is_fulfilled
         order_obj.is_fulfilled = '[Fulfilled by' in (order_obj.note or '')
         orders_with_details.append(order_obj)
+    
     stores_for_filter = get_visible_stores_query(current_user).order_by(WooCommerceStore.name).all()
     admins_for_filter, users_for_filter = [], []
     if current_user.is_super_admin():
@@ -103,11 +126,14 @@ def manage_all_orders():
             users_for_filter = AppUser.query.filter(AppUser.role == 'user').all()
     elif current_user.is_admin():
         users_for_filter = current_user.children.all()
+    
     statuses = [('processing', 'Đang xử lý'), ('completed', 'Hoàn thành'), ('on-hold', 'Tạm giữ'), ('pending', 'Chờ thanh toán'), ('cancelled', 'Đã hủy'), ('refunded', 'Đã hoàn tiền'), ('failed', 'Thất bại')]
     columns_config_json = Setting.get_value('ORDER_TABLE_COLUMNS', '[]')
     columns_config = json.loads(columns_config_json)
+    
     query_params = request.args.copy()
     query_params.pop('page', None)
+    
     return render_template(
         'orders/manage_orders.html', title='Quản lý Đơn hàng',
         orders=orders_with_details, pagination=orders_pagination,
@@ -116,6 +142,7 @@ def manage_all_orders():
         search_query=search_query, selected_store_id=selected_store_id,
         selected_status=selected_status, start_date=start_date, end_date=end_date,
         selected_admin_id=selected_admin_id, selected_user_id=selected_user_id,
+        selected_fulfillment_status=selected_fulfillment_status,
         stores_for_filter=stores_for_filter, admins_for_filter=admins_for_filter,
         users_for_filter=users_for_filter, statuses=statuses
     )
@@ -168,6 +195,7 @@ def get_refund_details(order_id):
         return jsonify({
             'success': True,
             'payment_method': order_data.get('payment_method', 'N/A'),
+            'payment_method_title': order_data.get('payment_method_title', 'N/A'),
             'total_amount': str(order_data.get('total', '0')),
             'currency': order_data.get('currency', 'USD'),
             'total_refunded': str(total_refunded),
@@ -183,7 +211,7 @@ def process_refund(order_id):
     order = get_visible_orders_query(current_user).filter_by(id=order_id).first_or_404()
     data = request.get_json()
     try:
-        wcapi = API(url=order.store.store_url, consumer_key=order.store.consumer_key, consumer_secret=order.store.consumer_secret, version="wc/v3", timeout=30)
+        wcapi = API(url=order.store.store_url, consumer_key=order.store.consumer_key, consumer_secret=store.consumer_secret, version="wc/v3", timeout=30)
         response = wcapi.post(f"orders/{order.wc_order_id}/refunds", data)
         if response.status_code == 201:
             from app.worker import check_single_store_job
@@ -194,12 +222,9 @@ def process_refund(order_id):
     except Exception as e:
         return jsonify({'success': False, 'message': f'Lỗi kết nối: {str(e)}'}), 500
 
-# === CÁC ROUTE API PHỤC VỤ CHO FULFILLMENT ===
-
 @orders_bp.route('/get_fulfillment_template/<provider_name>')
 @login_required
 def get_fulfillment_template(provider_name):
-    # Chỉ cho phép các provider đã được định nghĩa
     if provider_name not in ['mangotee']:
         abort(404)
     try:
@@ -208,7 +233,6 @@ def get_fulfillment_template(provider_name):
         current_app.logger.error(f"CRITICAL: Không tìm thấy file template 'orders/{provider_name}.html'")
         abort(404)
 
-# API này được gọi bởi script trong mangotee.html để lấy data ban đầu
 @orders_bp.route('/api/fulfillment_details/<int:order_id>')
 @login_required
 def api_get_fulfillment_details(order_id):
@@ -218,8 +242,6 @@ def api_get_fulfillment_details(order_id):
         woo_order_response = wcapi.get(f"orders/{order.wc_order_id}")
         woo_order_response.raise_for_status()
         woo_order_data = woo_order_response.json()
-        
-        # SỬA LỖI: Thêm object 'billing' vào payload trả về
         data_payload = {
             "wc_order_id": order.wc_order_id,
             "store_name": order.store.name,
@@ -272,3 +294,144 @@ def api_get_fulfillment_products(provider_name):
     if not service: return jsonify({"success": False, "message": "Nhà cung cấp không được hỗ trợ."}), 404
     success, data = service.get_products()
     return jsonify({"success": success, "message": "OK" if success else data, "data": data if success else None})
+
+
+@orders_bp.route('/export')
+@login_required
+def export_orders():
+    order_ids_str = request.args.get('ids')
+    if not order_ids_str:
+        return "Không có đơn hàng nào được chọn.", 400
+
+    order_ids = [int(id) for id in order_ids_str.split(',')]
+    
+    orders_from_db = get_visible_orders_query(current_user).options(
+        joinedload(WooCommerceOrder.store)
+    ).filter(WooCommerceOrder.id.in_(order_ids)).all()
+
+    api_clients = {}
+    all_rows_data = []
+
+    raw_orders_data = []
+    for order_db in orders_from_db:
+        if not order_db.store:
+            continue
+        
+        store_id = order_db.store.id
+        if store_id not in api_clients:
+            try:
+                api_clients[store_id] = API(
+                    url=order_db.store.store_url,
+                    consumer_key=order_db.store.consumer_key,
+                    consumer_secret=order_db.store.consumer_secret,
+                    version="wc/v3",
+                    timeout=20
+                )
+            except Exception as e:
+                current_app.logger.error(f"Failed to create API client for store {order_db.store.name}: {e}")
+                continue
+        
+        wcapi = api_clients[store_id]
+        
+        try:
+            response = wcapi.get(f"orders/{order_db.wc_order_id}")
+            response.raise_for_status()
+            order_api_data = response.json()
+            order_api_data['_store_url'] = order_db.store.store_url 
+            raw_orders_data.append(order_api_data)
+        except Exception as e:
+            current_app.logger.error(f"Failed to get data for WC Order ID {order_db.wc_order_id}: {e}")
+
+    for order_data in raw_orders_data:
+        billing_info = order_data.get('billing', {})
+        
+        common_info = {
+            "DOMAIN": urlparse(order_data.get('_store_url', '')).netloc,
+            "Date Order": order_data.get('date_created', '').replace('T', ' '),
+            "ID ORDER": order_data.get('id', ''),
+            "TOTAL": order_data.get('total', ''),
+            "Fee Shipping": order_data.get('shipping_total', ''),
+            "NOTE": order_data.get('customer_note', ''),
+            "FULL NAME": f"{billing_info.get('first_name', '')} {billing_info.get('last_name', '')}".strip(),
+            "ADDRESS 1": billing_info.get('address_1', ''),
+            "ADDRESS 2": billing_info.get('address_2', ''),
+            "CITY": billing_info.get('city', ''),
+            "ZIPCODE": billing_info.get('postcode', ''),
+            "STATE": billing_info.get('state', ''),
+            "COUNTRY": billing_info.get('country', ''),
+            "PHONE": billing_info.get('phone', ''),
+            "Email": billing_info.get('email', '')
+        }
+
+        for item in order_data.get('line_items', []):
+            meta_data = item.get('meta_data', [])
+            variations = []
+            for meta in meta_data:
+                display_value = meta.get('display_value')
+                # <<< SỬA ĐỔI: Thêm logic làm sạch dữ liệu biến thể >>>
+                if isinstance(display_value, str):
+                    # Giải mã các ký tự HTML (vd: &#9632; -> ■)
+                    cleaned_value = html.unescape(display_value)
+                    # Loại bỏ ký tự khối vuông và các khoảng trắng ở đầu
+                    cleaned_value = cleaned_value.lstrip('■ \t\n\r')
+                    variations.append(cleaned_value)
+            
+            padded_variations = (variations + [''] * 6)[:6]
+
+            row = {**common_info}
+            row.update({
+                "Item Price": item.get('price', ''),
+                "TITLE PRODUCT": item.get('name', ''),
+                "URl PRODUCT": '', 
+                "IMAGE": '',       
+                "SKU PRODUCT": item.get('sku', ''),
+                "VAR 1": padded_variations[0],
+                "VAR 2": padded_variations[1],
+                "VAR 3": padded_variations[2],
+                "VAR 4": padded_variations[3],
+                "VAR 5": padded_variations[4],
+                "VAR 6": padded_variations[5],
+                "QUANTITY": item.get('quantity', '')
+            })
+            all_rows_data.append(row)
+
+    if not all_rows_data:
+        return "Không có dữ liệu sản phẩm để xuất.", 404
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Detailed Orders Export"
+    
+    headers = [
+        "DOMAIN", "Date Order", "ID ORDER", "TOTAL", "Item Price", "Fee Shipping",
+        "TITLE PRODUCT", "URl PRODUCT", "IMAGE", "SKU PRODUCT",
+        "VAR 1", "VAR 2", "VAR 3", "VAR 4", "VAR 5", "VAR 6",
+        "QUANTITY", "NOTE", "FULL NAME", "ADDRESS 1", "ADDRESS 2",
+        "CITY", "ZIPCODE", "STATE", "COUNTRY", "PHONE", "Email"
+    ]
+    sheet.append(headers)
+
+    for row_dict in all_rows_data:
+        row_to_append = []
+        for header in headers:
+            value = row_dict.get(header, '')
+            if isinstance(value, (dict, list)):
+                try:
+                    value = json.dumps(value, ensure_ascii=False)
+                except TypeError:
+                    value = str(value)
+            row_to_append.append(value)
+        sheet.append(row_to_append)
+
+    excel_stream = io.BytesIO()
+    workbook.save(excel_stream)
+    excel_stream.seek(0)
+    
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"detailed_orders_{timestamp}.xlsx"
+
+    return Response(
+        excel_stream,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment;filename={filename}'}
+    )

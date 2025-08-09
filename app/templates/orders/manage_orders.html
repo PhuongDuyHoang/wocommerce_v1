@@ -38,7 +38,7 @@
     .provider-btn img { height: 32px; object-fit: contain; }
     #imageModal .modal-content { background-color: transparent; border: none; box-shadow: none; }
     #refund-summary-list { list-style-type: none; padding-left: 0; }
-    #refund-summary-list li { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+    #refund-summary-list li { display: flex; justify-content: space-between; padding: 0.5rem 0; }
 </style>
 {% endblock %}
 
@@ -47,6 +47,11 @@
     <div class="header-content">
         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
             <h1 class="h2">{{ title }}</h1>
+            <div>
+                <button id="export-btn" class="btn btn-success btn-sm" disabled>
+                    <i class="bi bi-file-earmark-excel"></i> Export <span id="selected-count">(0)</span> đơn đã chọn
+                </button>
+            </div>
         </div>
         <div class="card shadow-sm mb-4">
             <div class="card-body">
@@ -57,6 +62,13 @@
                         {% if current_user.is_super_admin() or current_user.is_admin() %}<div class="col-md-2"><select class="form-select form-select-sm" name="user_id"><option value="">Tất cả User</option>{% for user in users_for_filter %}<option value="{{ user.id }}" {% if user.id == selected_user_id %}selected{% endif %}>{{ user.username }}</option>{% endfor %}</select></div>{% endif %}
                         <div class="col-md-2"><select class="form-select form-select-sm" name="store_id"><option value="">Tất cả cửa hàng</option>{% for store in stores_for_filter %}<option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>{% endfor %}</select></div>
                         <div class="col-md-2"><select class="form-select form-select-sm" name="status"><option value="">Tất cả trạng thái</option>{% for status_val, status_text in statuses %}<option value="{{ status_val }}" {% if status_val == selected_status %}selected{% endif %}>{{ status_text }}</option>{% endfor %}</select></div>
+                        <div class="col-md-2">
+                            <select class="form-select form-select-sm" name="fulfillment_status">
+                                <option value="">Tất cả Fulfillment</option>
+                                <option value="fulfilled" {% if selected_fulfillment_status == 'fulfilled' %}selected{% endif %}>Đã Fulfill</option>
+                                <option value="not_fulfilled" {% if selected_fulfillment_status == 'not_fulfilled' %}selected{% endif %}>Chưa Fulfill</option>
+                            </select>
+                        </div>
                         <div class="col-md-2"><input type="date" class="form-control form-control-sm" name="start_date" value="{{ start_date or '' }}"></div>
                         <div class="col-md-2"><input type="date" class="form-control form-control-sm" name="end_date" value="{{ end_date or '' }}"></div>
                         <div class="col-md-auto ms-auto"><div class="d-flex gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('orders.manage_all_orders') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div>
@@ -68,46 +80,150 @@
 
     <div class="table-responsive">
         <table class="table table-hover table-bordered table-sm" style="table-layout: fixed;">
-            <thead class="table-light"><tr>{% for column in columns_config if column.visible and column.key != 'image' %}{% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}<th style="width: {{ column.width or 'auto' }};">{{ column.label }}</th>{% endif %}{% endfor %}</tr></thead>
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 40px;">
+                        <input class="form-check-input" type="checkbox" id="select-all-checkbox" title="Chọn tất cả trên trang này">
+                    </th>
+                    {% for column in columns_config if column.visible and column.key != 'image' %}{% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}<th style="width: {{ column.width or 'auto' }};">{{ column.label }}</th>{% endif %}{% endfor %}
+                </tr>
+            </thead>
             <tbody>
-                {% for order in orders %}<tr>{% for column in columns_config if column.visible and column.key != 'image' %}{% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}<td class="{% if column.type == 'currency' %}text-end{% endif %} {% if column.key == 'note' %}td-note-cell{% endif %}">{% if column.key == 'note' %}<div class="note-wrapper"><textarea class="order-note-textarea" data-order-id="{{ order.id }}" data-original-value="{{ order.note or '' }}" placeholder="Thêm ghi chú...">{{ order.note or '' }}</textarea><div class="save-status"></div></div>{% elif column.key == 'order_created_at' and order.order_created_at %}{{ order.order_created_at.strftime('%d-%m-%Y %H:%M') }}{% elif column.key == 'store_name' %}<a href="{{ url_for('stores.edit', store_id=order.store.id) }}">{{ order.store.name }}</a>{% elif column.key == 'wc_order_id' %}#{{ order.wc_order_id }}{% elif column.type == 'currency' %}${{ "{:,.2f}".format(order[column.key] or 0) }}{% elif column.key == 'status' %}<div class="status-update-form"><select class="form-select form-select-sm status-select status-{{ order.status }}" data-order-id="{{ order.id }}" data-wc-order-id="{{ order.wc_order_id }}" data-original-status="{{ order.status }}">{% for status_val, status_text in statuses %}<option value="{{ status_val }}" {% if order.status == status_val %}selected{% endif %}>{{ status_text }}</option>{% endfor %}</select><button class="btn btn-sm btn-primary status-save-btn" disabled><i class="bi bi-save"></i></button></div>{% elif column.key == 'products' %}<ul class="product-list">{% for item in order.line_items %}<li><a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-large-src="{{ item.image_url }}"><img src="{{ item.image_url }}" alt="{{ item.product_name }}" class="product-image"></a><div><strong>{{ item.product_name }}</strong> (SL: {{ item.quantity }})<br><span class="text-muted">SKU: {{ item.sku or 'N/A' }}</span></div></li>{% endfor %}</ul>
-                {% elif column.key == 'actions' %}
-                    <div class="text-center d-flex gap-1 justify-content-center flex-wrap">
-                        <button class="btn btn-sm btn-outline-info refund-btn" data-order-id="{{ order.id }}" data-wc-order-id="{{ order.wc_order_id }}" title="Xử lý hoàn tiền"><i class="bi bi-currency-exchange"></i></button>
-                        <button 
-                            class="btn btn-sm {% if order.is_fulfilled %}btn-success{% else %}btn-outline-primary{% endif %} fulfill-btn" 
-                            data-order-id="{{ order.id }}" 
-                            title="{% if order.is_fulfilled %}Đã Fulfill (Có thể Fulfill lại){% else %}Fulfill Đơn hàng{% endif %}">
-                            <i class="bi {% if order.is_fulfilled %}bi-check-circle-fill{% else %}bi-box-seam-fill{% endif %}"></i>
-                        </button>
-                    </div>
-                {% else %}<div title="{{ order[column.key] or '' }}">{{ order[column.key] or '' }}</div>{% endif %}</td>{% endif %}{% endfor %}</tr>{% else %}<tr><td colspan="100%" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào.</td></tr>{% endfor %}</tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>
+                        <input class="form-check-input order-checkbox" type="checkbox" value="{{ order.id }}">
+                    </td>
+                    {% for column in columns_config if column.visible and column.key != 'image' %}{% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}<td class="{% if column.type == 'currency' %}text-end{% endif %} {% if column.key == 'note' %}td-note-cell{% endif %}">{% if column.key == 'note' %}<div class="note-wrapper"><textarea class="order-note-textarea" data-order-id="{{ order.id }}" data-original-value="{{ order.note or '' }}" placeholder="Thêm ghi chú...">{{ order.note or '' }}</textarea><div class="save-status"></div></div>{% elif column.key == 'order_created_at' and order.order_created_at %}{{ order.order_created_at.strftime('%d-%m-%Y %H:%M') }}{% elif column.key == 'store_name' %}<a href="{{ url_for('stores.edit', store_id=order.store.id) }}">{{ order.store.name }}</a>{% elif column.key == 'wc_order_id' %}#{{ order.wc_order_id }}{% elif column.type == 'currency' %}${{ "{:,.2f}".format(order[column.key] or 0) }}{% elif column.key == 'status' %}<div class="status-update-form"><select class="form-select form-select-sm status-select status-{{ order.status }}" data-order-id="{{ order.id }}" data-wc-order-id="{{ order.wc_order_id }}" data-original-status="{{ order.status }}">{% for status_val, status_text in statuses %}<option value="{{ status_val }}" {% if order.status == status_val %}selected{% endif %}>{{ status_text }}</option>{% endfor %}</select><button class="btn btn-sm btn-primary status-save-btn" disabled><i class="bi bi-save"></i></button></div>{% elif column.key == 'products' %}<ul class="product-list">{% for item in order.line_items %}<li><a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-large-src="{{ item.image_url }}"><img src="{{ item.image_url }}" alt="{{ item.product_name }}" class="product-image"></a><div><strong>{{ item.product_name }}</strong> (SL: {{ item.quantity }})<br><span class="text-muted">SKU: {{ item.sku or 'N/A' }}</span></div></li>{% endfor %}</ul>
+                    {% elif column.key == 'actions' %}
+                        <div class="text-center d-flex gap-1 justify-content-center flex-wrap">
+                            <button class="btn btn-sm btn-outline-info refund-btn" data-order-id="{{ order.id }}" data-wc-order-id="{{ order.wc_order_id }}" title="Xử lý hoàn tiền"><i class="bi bi-currency-exchange"></i></button>
+                            <button class="btn btn-sm {% if order.is_fulfilled %}btn-success{% else %}btn-outline-primary{% endif %} fulfill-btn" data-order-id="{{ order.id }}" title="{% if order.is_fulfilled %}Đã Fulfill (Có thể Fulfill lại){% else %}Fulfill Đơn hàng{% endif %}"><i class="bi {% if order.is_fulfilled %}bi-check-circle-fill{% else %}bi-box-seam-fill{% endif %}"></i></button>
+                        </div>
+                    {% else %}<div title="{{ order[column.key] or '' }}">{{ order[column.key] or '' }}</div>{% endif %}</td>{% endif %}{% endfor %}
+                </tr>
+                {% else %}
+                <tr><td colspan="100%" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào.</td></tr>
+                {% endfor %}
+            </tbody>
         </table>
     </div>
 </div>
 
+{% if pagination %}
 <div class="d-flex justify-content-center mt-4">
-    {% if pagination and pagination.pages > 1 %}<nav><ul class="pagination">
-        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.prev_num, **query_params) }}">&laquo;</a></li>
-        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}{% if page_num %}<li class="page-item {% if page_num == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=page_num, **query_params) }}">{{ page_num }}</a></li>{% else %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}{% endfor %}
-        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.next_num, **query_params) }}">&raquo;</a></li>
-    </ul></nav>{% endif %}
+    <nav>
+        <ul class="pagination">
+            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.prev_num, **query_params) }}">Trước</a>
+            </li>
+            {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                    <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('orders.manage_all_orders', page=page_num, **query_params) }}">{{ page_num }}</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.next_num, **query_params) }}">Sau</a>
+            </li>
+        </ul>
+    </nav>
+</div>
+{% endif %}
+
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <img id="modalImage" src="" alt="Large product image" class="img-fluid">
+        </div>
+    </div>
 </div>
 
-<div class="modal fade" id="imageModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-body text-center"><img src="" class="img-fluid" id="modalImage"></div></div></div></div>
-<div class="modal fade" id="refundModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="refundModalLabel">Hoàn tiền cho Đơn hàng #<span id="refund-wc-order-id"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="refund-loader" class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Đang lấy chi tiết đơn hàng...</p></div><div id="refund-content" class="d-none"><div class="row"><div class="col-md-6"><h6>Tóm tắt</h6><ul id="refund-summary-list"><li><span>Tổng đơn hàng:</span><strong id="refund-total-amount"></strong></li><li><span>Đã hoàn tiền:</span><span id="refund-total-refunded" class="text-danger"></span></li><li><span>Có thể hoàn:</span><strong id="refund-refundable-amount" class="text-success"></strong></li></ul><hr><h6>Thông tin thanh toán</h6><p class="mb-1"><strong>Phương thức:</strong> <span id="refund-payment-method"></span></p></div><div class="col-md-6"><h6>Lịch sử hoàn tiền</h6><div class="table-responsive" style="max-height: 200px;"><table class="table table-sm table-bordered" id="refund-history-table"><thead class="table-light"><tr><th>Ngày</th><th>Lý do</th><th class="text-end">Số tiền</th></tr></thead><tbody id="refund-history-body"></tbody></table></div></div></div><hr><h6>Tạo Hoàn tiền mới</h6><div class="row g-3"><div class="col-md-6"><label for="refund-amount-input" class="form-label">Số tiền hoàn lại</label><input type="number" class="form-control" id="refund-amount-input" step="0.01" placeholder="0.00"></div><div class="col-md-6"><label for="refund-reason-input" class="form-label">Lý do (tùy chọn)</label><input type="text" class="form-control" id="refund-reason-input"></div></div></div></div><div class="modal-footer justify-content-between"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary refund-action-btn" id="process-refund-manual-btn" data-api-refund="false" disabled><i class="bi bi-pencil-square"></i> Hoàn tiền Thủ công</button><button type="button" class="btn btn-primary refund-action-btn" id="process-refund-api-btn" data-api-refund="true" disabled><i class="bi bi-credit-card"></i> Hoàn tiền qua Cổng TT</button></div></div></div></div></div>
-<div class="modal fade" id="fulfillProviderSelectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Chọn nhà cung cấp Fulfillment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="fulfill-provider-list" class="d-grid gap-2"></div></div></div></div></div>
-<div class="modal fade" id="fulfillModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content" id="fulfill-modal-content"></div></div></div>
+<div class="modal fade" id="refundModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Xử lý Hoàn tiền cho Đơn hàng #<span id="refund-wc-order-id"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="refund-loader" class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div id="refund-content" class="d-none">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                           <ul id="refund-summary-list">
+                               <li><span>Tổng đơn hàng:</span><strong id="refund-total-amount"></strong></li>
+                               <li><span>Đã hoàn:</span><strong id="refund-total-refunded" class="text-danger"></strong></li>
+                               <hr class="my-1">
+                               <li><span>Có thể hoàn:</span><strong id="refund-refundable-amount" class="text-success"></strong></li>
+                               <li><span>Cổng thanh toán:</span><strong id="refund-payment-method"></strong></li>
+                           </ul>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="refund-amount-input" class="form-label">Số tiền hoàn</label>
+                        <input type="number" class="form-control" id="refund-amount-input" step="0.01">
+                    </div>
+                    <div class="mb-3">
+                        <label for="refund-reason-input" class="form-label">Lý do hoàn tiền (tùy chọn)</label>
+                        <input type="text" class="form-control" id="refund-reason-input" placeholder="VD: Khách hàng yêu cầu">
+                    </div>
+                    <h6 class="mt-4">Lịch sử Hoàn tiền</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead><tr><th>Ngày</th><th>Lý do</th><th class="text-end">Số tiền</th></tr></thead>
+                        <tbody id="refund-history-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" id="process-refund-manual-btn" class="btn btn-warning refund-action-btn" data-api-refund="false" disabled><i class="bi bi-pencil-square"></i> Hoàn tiền Thủ công</button>
+                <button type="button" id="process-refund-api-btn" class="btn btn-primary refund-action-btn" data-api-refund="true" disabled><i class="bi bi-credit-card"></i> Hoàn tiền qua Cổng TT</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="fulfillProviderSelectModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Chọn Nhà Cung Cấp Fulfillment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="fulfill-provider-list">
+                </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="fulfillModal" tabindex="-1">
+    <div class="modal-dialog" id="fulfill-modal-dialog">
+        <div class="modal-content" id="fulfill-modal-content">
+             </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // --- PHẦN JAVASCRIPT ĐẦY ĐỦ ---
     window.showToast = function(message, category = 'info') {
         const toastContainer = document.querySelector('.toast-container');
         if (!toastContainer) return;
+        let bgColor = 'bg-primary';
+        if (category === 'success') bgColor = 'bg-success';
+        if (category === 'danger') bgColor = 'bg-danger';
+        if (category === 'warning') bgColor = 'bg-warning text-dark';
         const toastEl = document.createElement('div');
-        toastEl.className = `toast align-items-center text-white bg-${category} border-0`;
+        toastEl.className = `toast align-items-center text-white ${bgColor} border-0`;
         toastEl.setAttribute('role', 'alert');
         toastEl.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
         toastContainer.appendChild(toastEl);
@@ -155,111 +271,170 @@ document.addEventListener('DOMContentLoaded', function() {
             }).finally(() => { this.innerHTML = '<i class="bi bi-save"></i>'; });
         });
     });
-    const refundModal = new bootstrap.Modal(document.getElementById('refundModal'));
-    let currentRefundData = {};
-    document.querySelectorAll('.refund-btn').forEach(btn => {
-        btn.addEventListener('click', async function() {
-            currentRefundData = { orderId: this.dataset.orderId, wcOrderId: this.dataset.wcOrderId };
-            document.getElementById('refund-wc-order-id').textContent = currentRefundData.wcOrderId;
-            document.getElementById('refund-content').classList.add('d-none');
-            document.getElementById('refund-loader').classList.remove('d-none');
-            refundModal.show();
-            try {
-                const res = await fetch(`/orders/get_refund_details/${currentRefundData.orderId}`);
-                const data = await res.json();
-                if (!res.ok || !data.success) throw new Error(data.message);
-                currentRefundData.maxAmount = parseFloat(data.refundable_amount);
-                document.getElementById('refund-total-amount').textContent = `${parseFloat(data.total_amount).toLocaleString()} ${data.currency}`;
-                document.getElementById('refund-total-refunded').textContent = `-${parseFloat(data.total_refunded).toLocaleString()} ${data.currency}`;
-                document.getElementById('refund-refundable-amount').textContent = `${currentRefundData.maxAmount.toLocaleString()} ${data.currency}`;
-                document.getElementById('refund-payment-method').textContent = data.payment_method_title;
-                const refundApiBtn = document.getElementById('process-refund-api-btn');
-                refundApiBtn.disabled = !data.payment_method.match(/stripe|paypal/);
-                const historyBody = document.getElementById('refund-history-body');
-                historyBody.innerHTML = data.refunds.length ? data.refunds.map(r => `<tr><td>${new Date(r.date).toLocaleString()}</td><td>${r.reason}</td><td class="text-end text-danger">-${parseFloat(r.amount).toLocaleString()} ${data.currency}</td></tr>`).join('') : '<tr><td colspan="3" class="text-center">Chưa có lịch sử.</td></tr>';
-                document.getElementById('refund-amount-input').value = currentRefundData.maxAmount;
-                document.getElementById('refund-amount-input').dispatchEvent(new Event('input'));
-                document.getElementById('refund-loader').classList.add('d-none');
-                document.getElementById('refund-content').classList.remove('d-none');
-            } catch (err) {
-                document.getElementById('refund-loader').innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
-            }
-        });
-    });
-    document.getElementById('refund-amount-input').addEventListener('input', function() {
-        const amount = parseFloat(this.value) || 0;
-        const isValid = amount > 0 && amount <= currentRefundData.maxAmount;
-        document.getElementById('process-refund-manual-btn').disabled = !isValid;
-        const apiBtn = document.getElementById('process-refund-api-btn');
-        if(!apiBtn.getAttribute('disabled')) apiBtn.disabled = !isValid;
-    });
-    document.querySelectorAll('.refund-action-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            this.disabled = true; this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-            fetch(`/orders/process_refund/${currentRefundData.orderId}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: document.getElementById('refund-amount-input').value, reason: document.getElementById('refund-reason-input').value, api_refund: this.dataset.apiRefund === 'true' })
-            }).then(res => res.json().then(data => ({ok: res.ok, data}))).then(({ok, data}) => {
-                if (!ok || !data.success) throw new Error(data.message);
-                showToast(data.message, 'success');
-                refundModal.hide();
-                setTimeout(() => window.location.reload(), 1500);
-            }).catch(err => {
-                showToast(`Lỗi hoàn tiền: ${err.message}`, 'danger');
-                this.innerHTML = this.dataset.apiRefund === 'true' ? '<i class="bi bi-credit-card"></i> Hoàn tiền qua Cổng TT' : '<i class="bi bi-pencil-square"></i> Hoàn tiền Thủ công';
-                this.disabled = false;
+    const refundModalEl = document.getElementById('refundModal');
+    if (refundModalEl) {
+        const refundModal = new bootstrap.Modal(refundModalEl);
+        let currentRefundData = {};
+        document.querySelectorAll('.refund-btn').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                currentRefundData = { orderId: this.dataset.orderId, wcOrderId: this.dataset.wcOrderId };
+                document.getElementById('refund-wc-order-id').textContent = currentRefundData.wcOrderId;
+                document.getElementById('refund-content').classList.add('d-none');
+                document.getElementById('refund-loader').classList.remove('d-none');
+                refundModal.show();
+                try {
+                    const res = await fetch(`/orders/get_refund_details/${currentRefundData.orderId}`);
+                    const data = await res.json();
+                    if (!res.ok || !data.success) throw new Error(data.message);
+                    currentRefundData.maxAmount = parseFloat(data.refundable_amount);
+                    document.getElementById('refund-total-amount').textContent = `${parseFloat(data.total_amount).toLocaleString()} ${data.currency}`;
+                    document.getElementById('refund-total-refunded').textContent = `-${parseFloat(data.total_refunded).toLocaleString()} ${data.currency}`;
+                    document.getElementById('refund-refundable-amount').textContent = `${currentRefundData.maxAmount.toLocaleString()} ${data.currency}`;
+                    document.getElementById('refund-payment-method').textContent = data.payment_method_title || data.payment_method;
+                    const refundApiBtn = document.getElementById('process-refund-api-btn');
+                    refundApiBtn.disabled = !(data.payment_method || "").match(/stripe|paypal/);
+                    const historyBody = document.getElementById('refund-history-body');
+                    historyBody.innerHTML = data.refunds.length ? data.refunds.map(r => `<tr><td>${new Date(r.date).toLocaleString()}</td><td>${r.reason || 'N/A'}</td><td class="text-end text-danger">-${parseFloat(r.amount).toLocaleString()} ${data.currency}</td></tr>`).join('') : '<tr><td colspan="3" class="text-center">Chưa có lịch sử.</td></tr>';
+                    const amountInput = document.getElementById('refund-amount-input');
+                    amountInput.value = currentRefundData.maxAmount;
+                    amountInput.dispatchEvent(new Event('input'));
+                    document.getElementById('refund-loader').classList.add('d-none');
+                    document.getElementById('refund-content').classList.remove('d-none');
+                } catch (err) {
+                    document.getElementById('refund-loader').innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+                }
             });
         });
-    });
-    const fulfillProviderSelectModal = new bootstrap.Modal(document.getElementById('fulfillProviderSelectModal'));
-    const fulfillModal = new bootstrap.Modal(document.getElementById('fulfillModal'));
-    let currentOrderIdForFulfill = null;
-    const availableProviders = [{ key: 'mangotee', name: 'Fulfill qua MangoTee', logo: 'https://stripeptechgo.sfo3.cdn.digitaloceanspaces.com/LogoFF/logomango.png' }];
-    async function openFulfillInterface(providerKey) {
-        const fulfillModalContent = document.getElementById('fulfill-modal-content');
-        fulfillModalContent.innerHTML = `<div class="modal-body text-center p-5"><div class="spinner-border text-primary"></div><p class="mt-2">Đang tải...</p></div>`;
-        fulfillModal.show();
-        try {
-            const response = await fetch(`/orders/get_fulfillment_template/${providerKey}`);
-            if (!response.ok) throw new Error(`Lỗi ${response.status}: Không thể tải giao diện.`);
-            const templateHtml = await response.text();
-            fulfillModalContent.innerHTML = templateHtml;
-            const scriptTag = fulfillModalContent.querySelector('script');
-            if (scriptTag) {
-                const newScript = document.createElement('script');
-                newScript.textContent = scriptTag.textContent;
-                document.body.appendChild(newScript).remove();
+        document.getElementById('refund-amount-input').addEventListener('input', function() {
+            const amount = parseFloat(this.value) || 0;
+            const isValid = amount > 0 && amount <= currentRefundData.maxAmount;
+            document.getElementById('process-refund-manual-btn').disabled = !isValid;
+            const apiBtn = document.getElementById('process-refund-api-btn');
+            if(apiBtn.getAttribute('disabled') === null) apiBtn.disabled = !isValid;
+        });
+        document.querySelectorAll('.refund-action-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.disabled = true; this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                fetch(`/orders/process_refund/${currentRefundData.orderId}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: document.getElementById('refund-amount-input').value, reason: document.getElementById('refund-reason-input').value, api_refund: this.dataset.apiRefund === 'true' })
+                }).then(res => res.json().then(data => ({ok: res.ok, data}))).then(({ok, data}) => {
+                    if (!ok || !data.success) throw new Error(data.message);
+                    showToast(data.message, 'success');
+                    refundModal.hide();
+                    setTimeout(() => window.location.reload(), 1500);
+                }).catch(err => {
+                    showToast(`Lỗi hoàn tiền: ${err.message}`, 'danger');
+                    this.innerHTML = this.dataset.apiRefund === 'true' ? '<i class="bi bi-credit-card"></i> Hoàn tiền qua Cổng TT' : '<i class="bi bi-pencil-square"></i> Hoàn tiền Thủ công';
+                    this.disabled = false;
+                });
+            });
+        });
+    }
+
+    const fulfillProviderSelectModalEl = document.getElementById('fulfillProviderSelectModal');
+    if (fulfillProviderSelectModalEl) {
+        const fulfillProviderSelectModal = new bootstrap.Modal(fulfillProviderSelectModalEl);
+        const fulfillModal = new bootstrap.Modal(document.getElementById('fulfillModal'));
+        let currentOrderIdForFulfill = null;
+        const availableProviders = [{ key: 'mangotee', name: 'Fulfill qua MangoTee', logo: 'https://stripeptechgo.sfo3.cdn.digitaloceanspaces.com/LogoFF/logomango.png' }];
+        async function openFulfillInterface(providerKey) {
+            const fulfillModalContent = document.getElementById('fulfill-modal-content');
+            fulfillModalContent.innerHTML = `<div class="modal-body text-center p-5"><div class="spinner-border text-primary"></div><p class="mt-2">Đang tải...</p></div>`;
+            fulfillModal.show();
+            try {
+                const response = await fetch(`/orders/get_fulfillment_template/${providerKey}`);
+                if (!response.ok) throw new Error(`Lỗi ${response.status}: Không thể tải giao diện.`);
+                const templateHtml = await response.text();
+                fulfillModalContent.innerHTML = templateHtml;
+                const scriptTag = fulfillModalContent.querySelector('script');
+                if (scriptTag) {
+                    const newScript = document.createElement('script');
+                    newScript.textContent = scriptTag.textContent;
+                    document.body.appendChild(newScript).remove();
+                }
+                const initFunctionName = `initFulfill${providerKey.charAt(0).toUpperCase() + providerKey.slice(1)}`;
+                if (window[initFunctionName]) {
+                    window[initFunctionName](currentOrderIdForFulfill);
+                } else {
+                    throw new Error(`Lỗi: Không tìm thấy hàm khởi tạo ${initFunctionName}.`);
+                }
+            } catch (error) {
+                fulfillModalContent.innerHTML = `<div class="modal-body"><div class="alert alert-danger">${error.message}</div></div>`;
             }
-            const initFunctionName = `initFulfill${providerKey.charAt(0).toUpperCase() + providerKey.slice(1)}`;
-            if (window[initFunctionName]) {
-                window[initFunctionName](currentOrderIdForFulfill);
+        }
+        document.querySelectorAll('.fulfill-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                currentOrderIdForFulfill = this.dataset.orderId;
+                const providerListDiv = document.getElementById('fulfill-provider-list');
+                providerListDiv.innerHTML = '';
+                availableProviders.forEach(p => {
+                    providerListDiv.innerHTML += `<button type="button" class="btn btn-outline-primary provider-select-btn provider-btn w-100 mb-2" data-provider-key="${p.key}"><img src="${p.logo}"><span>${p.name}</span></button>`;
+                });
+                fulfillProviderSelectModal.show();
+            });
+        });
+        document.getElementById('fulfill-provider-list').addEventListener('click', function(e) {
+            const providerBtn = e.target.closest('.provider-select-btn');
+            if(providerBtn) {
+                const providerKey = providerBtn.dataset.providerKey;
+                fulfillProviderSelectModal.hide();
+                setTimeout(() => openFulfillInterface(providerKey), 200);
+            }
+        });
+    }
+
+    // <<< PHẦN LOGIC EXPORT - HOẠT ĐỘNG CHÍNH XÁC >>>
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const orderCheckboxes = document.querySelectorAll('.order-checkbox');
+    const exportBtn = document.getElementById('export-btn');
+    const selectedCountSpan = document.getElementById('selected-count');
+
+    function updateExportButtonState() {
+        const selectedCheckboxes = document.querySelectorAll('.order-checkbox:checked');
+        const count = selectedCheckboxes.length;
+        
+        if (selectedCountSpan) selectedCountSpan.textContent = `(${count})`;
+        if (exportBtn) exportBtn.disabled = (count === 0);
+
+        if (selectAllCheckbox) {
+            if (count > 0 && count < orderCheckboxes.length) {
+                selectAllCheckbox.indeterminate = true;
             } else {
-                throw new Error(`Lỗi: Không tìm thấy hàm khởi tạo ${initFunctionName}.`);
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = (orderCheckboxes.length > 0 && count === orderCheckboxes.length);
             }
-        } catch (error) {
-            fulfillModalContent.innerHTML = `<div class="modal-body"><div class="alert alert-danger">${error.message}</div></div>`;
         }
     }
-    document.querySelectorAll('.fulfill-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            currentOrderIdForFulfill = this.dataset.orderId;
-            const providerListDiv = document.getElementById('fulfill-provider-list');
-            providerListDiv.innerHTML = '';
-            availableProviders.forEach(p => {
-                providerListDiv.innerHTML += `<button type="button" class="btn btn-outline-primary provider-select-btn provider-btn" data-provider-key="${p.key}"><img src="${p.logo}"><span>${p.name}</span></button>`;
+
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            orderCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
             });
-            fulfillProviderSelectModal.show();
+            updateExportButtonState();
         });
+    }
+
+    orderCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateExportButtonState);
     });
-    document.getElementById('fulfill-provider-list').addEventListener('click', function(e) {
-        const providerBtn = e.target.closest('.provider-select-btn');
-        if(providerBtn) {
-            const providerKey = providerBtn.dataset.providerKey;
-            fulfillProviderSelectModal.hide();
-            setTimeout(() => openFulfillInterface(providerKey), 200);
-        }
-    });
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function() {
+            const selectedIds = Array.from(document.querySelectorAll('.order-checkbox:checked'))
+                                     .map(cb => cb.value);
+            
+            if (selectedIds.length > 0) {
+                const baseUrl = "{{ url_for('orders.export_orders') }}";
+                const exportUrl = `${baseUrl}?ids=${selectedIds.join(',')}`;
+                window.location.href = exportUrl;
+            }
+        });
+    }
+    
+    updateExportButtonState();
 });
 </script>
 {% endblock %}
