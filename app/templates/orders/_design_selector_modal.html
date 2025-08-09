@@ -1,0 +1,223 @@
+<style>
+    /* CSS cho modal chọn design */
+    #designSelectModal .modal-dialog {
+        max-width: 95%;
+        height: 90vh; /* Chiều cao 90% màn hình */
+        margin-top: 2.5vh;
+        margin-bottom: 2.5vh;
+    }
+
+    #designSelectModal .modal-content {
+        height: 100%;
+        overflow: hidden; /* Tránh 2 thanh cuộn */
+    }
+
+    /* CSS cho card design và icon xem nhanh */
+    .design-card-container {
+        position: relative;
+        height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+    }
+
+    .design-card-container .card-img-top {
+        max-height: 100%;
+        max-width: 100%;
+        object-fit: contain;
+    }
+
+    .view-design-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        cursor: pointer;
+        z-index: 10;
+        padding: 0.25rem;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border-radius: 50%;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+    }
+    .view-design-btn:hover {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+
+    /* CSS cho modal xem ảnh design */
+    #viewDesignModal .modal-content {
+        background-color: transparent;
+        border: none;
+        box-shadow: none
+    }
+    #viewDesignModal .modal-header {
+        position: absolute;
+        top: -1rem;
+        right: -1rem;
+        z-index: 1056;
+        border-bottom: 0
+    }
+</style>
+
+<div class="modal fade" id="designSelectModal" tabindex="-1" aria-labelledby="designSelectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="designSelectModalLabel">Chọn Design</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body d-flex flex-column">
+                <div class="input-group mb-3">
+                    <input type="text" id="design-search-input" class="form-control" placeholder="Tìm tên design...">
+                    <button class="btn btn-outline-secondary" type="button" id="design-search-btn"><i class="bi bi-search"></i></button>
+                </div>
+                <div class="flex-grow-1" style="overflow-y: auto;">
+                    <div id="design-selector-loader" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">Đang tải danh sách design...</p>
+                    </div>
+                    <div id="design-grid" class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 row-cols-xl-8 g-3"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="viewDesignModal" tabindex="-1" aria-labelledby="viewDesignModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-0">
+                <img src="" id="viewDesignImage" class="img-fluid" style="max-height: 80vh; border-radius: .5rem;" alt="Xem trước Design">
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+// Logic đóng gói cho việc chọn Design.
+// Component này không phụ thuộc vào bất kỳ form nào khác và giao tiếp qua Custom Events.
+document.addEventListener('DOMContentLoaded', () => {
+    // --- State và Elements của component ---
+    const designSelectorState = {
+        allDesigns: [],
+        isDataLoaded: false,
+        currentTarget: {} // Lưu target do component cha truyền vào
+    };
+
+    const designSelectModalEl = document.getElementById('designSelectModal');
+    if (!designSelectModalEl) return; // Dừng nếu không có modal trên trang
+
+    const designSelectModal = new bootstrap.Modal(designSelectModalEl);
+    const viewDesignModal = new bootstrap.Modal(document.getElementById('viewDesignModal'));
+
+    const designGrid = document.getElementById('design-grid');
+    const designSearchInput = document.getElementById('design-search-input');
+    const designSearchBtn = document.getElementById('design-search-btn');
+    const loader = document.getElementById('design-selector-loader');
+
+    // --- Hàm render danh sách design ---
+    const renderDesigns = (query = '') => {
+        const lowerCaseQuery = query.toLowerCase().trim();
+        const filteredDesigns = designSelectorState.allDesigns.filter(d => d.name.toLowerCase().includes(lowerCaseQuery));
+
+        designGrid.innerHTML = '';
+        if (filteredDesigns.length === 0) {
+            designGrid.innerHTML = '<p class="text-muted ms-3">Không tìm thấy design nào.</p>';
+        } else {
+            const fragment = document.createDocumentFragment();
+            filteredDesigns.forEach(design => {
+                const col = document.createElement('div');
+                col.className = 'col';
+                col.innerHTML = `
+                    <div class="card h-100 shadow-sm" data-design-url="${design.image_url}" style="cursor: pointer;">
+                        <div class="design-card-container">
+                            <img src="${design.image_url}" class="card-img-top" alt="${design.name}" loading="lazy">
+                            <span class="view-design-btn" data-view-url="${design.image_url}" title="Xem ảnh lớn">
+                                <i class="bi bi-eye-fill" style="pointer-events: none;"></i>
+                            </span>
+                        </div>
+                        <div class="card-body p-2">
+                            <p class="card-text small text-truncate" title="${design.name}">${design.name}</p>
+                        </div>
+                    </div>`;
+                fragment.appendChild(col);
+            });
+            designGrid.appendChild(fragment);
+        }
+    };
+
+    // --- Hàm fetch dữ liệu từ server ---
+    const loadDesignData = async () => {
+        if (designSelectorState.isDataLoaded) return true;
+
+        loader.classList.remove('d-none');
+        designGrid.classList.add('d-none');
+        try {
+            const res = await fetch(`/designs/api/all`);
+            const data = await res.json();
+            if (!res.ok) throw new Error('Lỗi tải danh sách design từ server.');
+
+            designSelectorState.allDesigns = data.designs;
+            designSelectorState.isDataLoaded = true;
+            renderDesigns();
+            return true;
+        } catch (error) {
+            loader.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+            return false;
+        } finally {
+            loader.classList.add('d-none');
+            designGrid.classList.remove('d-none');
+        }
+    };
+
+    // --- Gắn các Event Listeners của component ---
+    designSearchBtn.addEventListener('click', () => renderDesigns(designSearchInput.value));
+    designSearchInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') renderDesigns(designSearchInput.value);
+    });
+
+    designGrid.addEventListener('click', e => {
+        const viewBtn = e.target.closest('.view-design-btn');
+        if (viewBtn) {
+            document.getElementById('viewDesignImage').src = viewBtn.dataset.viewUrl;
+            viewDesignModal.show();
+            return; // Dừng lại, không thực hiện việc chọn design
+        }
+
+        const card = e.target.closest('.card[data-design-url]');
+        if (card) {
+            const selectedUrl = card.dataset.designUrl;
+            // Gửi event báo cho component cha biết design đã được chọn
+            document.dispatchEvent(new CustomEvent('design-selector:select', {
+                detail: {
+                    url: selectedUrl,
+                    targets: designSelectorState.currentTarget
+                }
+            }));
+            designSelectModal.hide();
+        }
+    });
+
+    // --- Giao tiếp với bên ngoài qua Custom Events ---
+    // Lắng nghe sự kiện yêu cầu mở modal từ một component khác
+    document.addEventListener('design-selector:open', async (e) => {
+        designSelectorState.currentTarget = e.detail || {}; // Lưu lại thông tin target
+        const dataLoaded = await loadDesignData();
+        if (dataLoaded) {
+            designSelectModal.show();
+        }
+    });
+});
+</script>

@@ -2,71 +2,27 @@
 
 {% block styles %}
 <style>
-    /* START: CSS MỚI CHO BỐ CỤC CỐ ĐỊNH HEADER */
+    /* Bố cục cố định header */
+    .content-wrapper { display: flex; flex-direction: column; height: calc(100vh - 56px - 40px); }
+    .header-content { flex-shrink: 0; }
+    .table-responsive { flex-grow: 1; overflow-y: auto; }
+    .table-responsive thead th { position: sticky; top: 0; z-index: 10; background-color: #f8f9fa; box-shadow: inset 0 -2px 0 #dee2e6; }
 
-    /* Container chính bọc toàn bộ nội dung, sử dụng flexbox */
-    .content-wrapper {
-        display: flex;
-        flex-direction: column;
-        /* Chiều cao của container sẽ bằng chiều cao khung nhìn trừ đi thanh điều hướng trên cùng (56px) và một chút khoảng đệm (padding) */
-        height: calc(100vh - 56px - 40px);
-    }
-
-    /* Phần header cố định (chứa tiêu đề trang và bộ lọc), sẽ không bị co lại */
-    .header-content {
-        flex-shrink: 0;
-    }
-
-    /* Table container sẽ chiếm hết không gian còn lại và tự động có thanh cuộn */
-    .table-responsive {
-        flex-grow: 1;
-        overflow-y: auto; /* Chỉ cho phép cuộn theo chiều dọc */
-    }
-
-    /* Tiêu đề của bảng sẽ "dính" vào top 0 của khu vực cuộn (.table-responsive) */
-    .table-responsive thead th {
-        position: -webkit-sticky; /* Dành cho Safari */
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background-color: #f8f9fa;
-        box-shadow: inset 0 -2px 0 #dee2e6;
-    }
-
-    /* END: CSS MỚI */
-
-
-    /* CSS chống giật khi mở popup */
-    body.modal-open {
-        overflow: hidden;
-        padding-right: 15px; /* Điều chỉnh nếu cần */
-    }
+    /* CSS chức năng */
+    body.modal-open { overflow: hidden; padding-right: 15px; }
     .table th { vertical-align: middle; text-align: center; }
     .table td { vertical-align: middle; overflow-wrap: break-word; word-break: break-word; }
     .product-list { list-style-type: none; padding-left: 0; margin-bottom: 0; font-size: 0.9em; }
     .product-list li { display: flex; align-items: flex-start; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px dashed #eee; }
-    .product-list li:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
-    .variations-text { color: #6c757d; font-size: 0.9em; font-style: italic; }
-    .sku-text { font-weight: 500; color: #495057; }
-    .product-image { width: 80px; height: 80px; object-fit: cover; border-radius: 4px; cursor: pointer; transition: transform 0.2s; margin-right: 12px; flex-shrink: 0; }
-    .product-image-placeholder { width: 80px; height: 80px; background-color: #f8f9fa; border: 1px dashed #dee2e6; border-radius: 4px; margin-right: 12px; flex-shrink: 0; }
-    .product-image:hover { transform: scale(1.1); }
-    #imageModal .modal-content { background-color: transparent; border: none; }
-    #imageModal .modal-body { padding: 0; }
-    #modalImage { width: 100%; height: auto; border-radius: 8px; }
+    .product-list li:last-child { border-bottom: none; }
+    .product-image { width: 80px; height: 80px; object-fit: cover; border-radius: 4px; cursor: pointer; margin-right: 12px; }
     .td-note-cell { position: relative; padding: 0 !important; }
     .note-wrapper { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; }
-    .order-note-textarea { flex-grow: 1; width: 100%; border: none; border-radius: 0; resize: none; background-color: transparent; padding: 8px; transition: background-color 0.2s ease-in-out; }
-    .order-note-textarea:hover { background-color: #f8f9fa; }
-    .order-note-textarea:focus { background-color: #fff; box-shadow: inset 0 0 0 2px #0d6efd; }
-    .save-status { position: absolute; bottom: 8px; right: 8px; font-size: 0.7em; padding: 2px 5px; border-radius: 4px; color: white; opacity: 0; transition: opacity 0.3s ease-in-out; pointer-events: none; }
+    .order-note-textarea { flex-grow: 1; border: none; resize: none; background-color: transparent; padding: 8px; }
+    .save-status { position: absolute; bottom: 8px; right: 8px; font-size: 0.7em; padding: 2px 5px; border-radius: 4px; color: white; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
     .save-status.show { opacity: 1; }
-    .save-status.saving { background-color: #0dcaf0; }
-    .save-status.saved { background-color: #198754; }
-    .save-status.error { background-color: #dc3545; }
     .status-update-form { display: flex; align-items: center; gap: 8px; min-width: 200px; }
     .status-select { flex-grow: 1; font-weight: 500; }
-    .status-save-btn .spinner-border { width: 1rem; height: 1rem; border-width: .2em; }
     .status-select.status-processing { background-color: #84af77; color: white; }
     .status-select.status-completed { background-color: #77a4b4; color: white; }
     .status-select.status-on-hold { background-color: #f8b44e; color: white; }
@@ -74,46 +30,30 @@
     .status-select.status-cancelled { background-color: #a4a9ac; color: white; }
     .status-select.status-refunded { background-color: #555; color: white; }
     .status-select.status-pending { background-color: #e9ecef; color: #333; }
-    #refund-summary-list { list-style-type: none; padding-left: 0; }
-    #refund-summary-list li { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
-    #refund-history-table th, #refund-history-table td { font-size: 0.9em; }
-
-    #fulfillModal .modal-dialog {
-        max-width: 900px;
-    }
-    .provider-btn {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        padding: 15px;
-        font-size: 1.1rem;
-    }
-    .provider-btn img {
-        height: 32px;
-        object-fit: contain;
-    }
+    #fulfillModal .modal-dialog { max-width: 900px; }
+    .provider-btn { display: flex; align-items: center; gap: 15px; padding: 15px; font-size: 1.1rem; }
+    .provider-btn img { height: 32px; object-fit: contain; }
+    #imageModal .modal-content { background-color: transparent; border: none; box-shadow: none; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="content-wrapper">
-
     <div class="header-content">
         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
             <h1 class="h2">{{ title }}</h1>
         </div>
-
         <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <form id="filters-form" action="{{ url_for('orders.manage_all_orders') }}" method="GET">
-                    <div class="row mb-3"><div class="col-12"><label for="search_query" class="form-label">Tìm kiếm</label><input type="text" class="form-control form-control-sm" id="search_query" name="search_query" placeholder="Mã đơn hàng, tên khách, SĐT, email, SKU sản phẩm..." value="{{ search_query or '' }}"></div></div>
+                    <div class="row mb-3"><div class="col-12"><input type="text" class="form-control form-control-sm" name="search_query" placeholder="Tìm mã đơn, tên khách, SĐT, email, SKU..." value="{{ search_query or '' }}"></div></div>
                     <div class="row g-2 align-items-end">
-                        {% if current_user.is_super_admin() %}<div class="col-md-2"><label for="admin_id_filter" class="form-label">Lọc theo Admin</label><select class="form-select form-select-sm" id="admin_id_filter" name="admin_id"><option value="">Tất cả Admin</option>{% for admin in admins_for_filter %}<option value="{{ admin.id }}" {% if admin.id == selected_admin_id %}selected{% endif %}>{{ admin.username }}</option>{% endfor %}</select></div>{% endif %}
-                        {% if current_user.is_super_admin() or current_user.is_admin() %}<div class="col-md-2"><label for="user_id_filter" class="form-label">Lọc theo User</label><select class="form-select form-select-sm" id="user_id_filter" name="user_id"><option value="">Tất cả User</option>{% for user in users_for_filter %}<option value="{{ user.id }}" {% if user.id == selected_user_id %}selected{% endif %}>{{ user.username }}</option>{% endfor %}</select></div>{% endif %}
-                        <div class="col-md-2"><label for="store_id_filter" class="form-label">Cửa hàng</label><select class="form-select form-select-sm" id="store_id_filter" name="store_id"><option value="">Tất cả</option>{% for store in stores_for_filter %}<option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>{% endfor %}</select></div>
-                        <div class="col-md-2"><label for="status_filter" class="form-label">Trạng thái</label><select class="form-select form-select-sm" id="status_filter" name="status"><option value="">Tất cả</option>{% for status_val, status_text in statuses %}<option value="{{ status_val }}" {% if status_val == selected_status %}selected{% endif %}>{{ status_text }}</option>{% endfor %}</select></div>
-                        <div class="col-md-2"><label for="start_date" class="form-label">Từ ngày</label><input type="date" class="form-control form-control-sm" id="start_date" name="start_date" value="{{ start_date or '' }}"></div>
-                        <div class="col-md-2"><label for="end_date" class="form-label">Đến ngày</label><input type="date" class="form-control form-control-sm" id="end_date" name="end_date" value="{{ end_date or '' }}"></div>
+                        {% if current_user.is_super_admin() %}<div class="col-md-2"><select class="form-select form-select-sm" name="admin_id" onchange="this.form.submit()"><option value="">Tất cả Admin</option>{% for admin in admins_for_filter %}<option value="{{ admin.id }}" {% if admin.id == selected_admin_id %}selected{% endif %}>{{ admin.username }}</option>{% endfor %}</select></div>{% endif %}
+                        {% if current_user.is_super_admin() or current_user.is_admin() %}<div class="col-md-2"><select class="form-select form-select-sm" name="user_id" onchange="this.form.submit()"><option value="">Tất cả User</option>{% for user in users_for_filter %}<option value="{{ user.id }}" {% if user.id == selected_user_id %}selected{% endif %}>{{ user.username }}</option>{% endfor %}</select></div>{% endif %}
+                        <div class="col-md-2"><select class="form-select form-select-sm" name="store_id"><option value="">Tất cả cửa hàng</option>{% for store in stores_for_filter %}<option value="{{ store.id }}" {% if store.id == selected_store_id %}selected{% endif %}>{{ store.name }}</option>{% endfor %}</select></div>
+                        <div class="col-md-2"><select class="form-select form-select-sm" name="status"><option value="">Tất cả trạng thái</option>{% for status_val, status_text in statuses %}<option value="{{ status_val }}" {% if status_val == selected_status %}selected{% endif %}>{{ status_text }}</option>{% endfor %}</select></div>
+                        <div class="col-md-2"><input type="date" class="form-control form-control-sm" name="start_date" value="{{ start_date or '' }}"></div>
+                        <div class="col-md-2"><input type="date" class="form-control form-control-sm" name="end_date" value="{{ end_date or '' }}"></div>
                         <div class="col-md-auto ms-auto"><div class="d-flex gap-2"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Lọc</button><a href="{{ url_for('orders.manage_all_orders') }}" class="btn btn-secondary btn-sm"><i class="bi bi-x-circle"></i> Xóa</a></div></div>
                     </div>
                 </form>
@@ -125,65 +65,42 @@
         <table class="table table-hover table-bordered table-sm" style="table-layout: fixed;">
             <thead class="table-light"><tr>{% for column in columns_config if column.visible and column.key != 'image' %}{% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}<th style="width: {{ column.width or 'auto' }};">{{ column.label }}</th>{% endif %}{% endfor %}</tr></thead>
             <tbody>
-                {% for order in orders %}<tr>{% for column in columns_config if column.visible and column.key != 'image' %}{% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}<td class="{% if column.type == 'currency' %}text-end fw-bold{% endif %}{% if column.key == 'wc_order_id' %}fw-bold{% endif %}{% if column.type == 'datetime' %}small text-nowrap{% endif %}{% if column.key == 'note' %}td-note-cell{% endif %}">{% if column.key == 'note' %}<div class="note-wrapper"><textarea class="order-note-textarea" data-order-id="{{ order.id }}" data-original-value="{{ order.note or '' }}" placeholder="Thêm ghi chú...">{{ order.note or '' }}</textarea><div class="save-status"></div></div>{% elif column.key == 'order_created_at' and order.order_created_at %}{{ order.order_created_at.strftime('%d-%m-%Y %H:%M') }}{% elif column.key == 'store_name' %}<div class="text-truncate" title="{{ order.store.name }}"><a href="{{ url_for('stores.edit', store_id=order.store.id) }}">{{ order.store.name }}</a></div>{% elif column.key == 'owner_username' %}{% if order.owner_username != 'Chưa gán' %}<span class="badge bg-info text-dark">{{ order.owner_username }}</span>{% else %}<span class="badge bg-secondary">Chưa gán</span>{% endif %}{% elif column.key == 'wc_order_id' %}#{{ order.wc_order_id }}{% elif column.type == 'currency' %}${{ "{:,.2f}".format(order[column.key] or 0) }}{% elif column.key == 'status' %}{% set statuses = [('pending', 'Chờ thanh toán'), ('processing', 'Đang xử lý'), ('on-hold', 'Tạm giữ'), ('completed', 'Hoàn thành'), ('cancelled', 'Đã hủy'), ('refunded', 'Đã hoàn tiền'), ('failed', 'Thất bại')] %}<div class="status-update-form"><select class="form-select form-select-sm status-select status-{{ order.status }}" data-order-id="{{ order.id }}" data-wc-order-id="{{ order.wc_order_id }}" data-original-status="{{ order.status }}">{% for status_val, status_text in statuses %}<option value="{{ status_val }}" {% if order.status == status_val %}selected{% endif %}>{{ status_text }}</option>{% endfor %}</select><button class="btn btn-sm btn-primary status-save-btn" disabled title="Lưu thay đổi"><i class="bi bi-save"></i></button></div>{% elif column.key == 'products' %}<ul class="product-list">{% for item in order.line_items %}<li>{% if item.image_url %}<a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-large-src="{{ item.image_url }}"><img src="{{ item.image_url }}" alt="{{ item.product_name }}" class="product-image"></a>{% else %}<div class="product-image-placeholder"></div>{% endif %}<div><strong class="d-block" title="{{ item.product_name }}">{{ item.product_name }}</strong><span>(SL: {{ item.quantity }})</span><br><span class="sku-text">SKU: {{ item.sku or 'N/A' }}</span>{% set variations = item.variations_list %}{% if variations %}<br><span class="variations-text">{{ variations | join(' | ') }}</span>{% endif %}</div></li>{% endfor %}</ul>
+                {% for order in orders %}<tr>{% for column in columns_config if column.visible and column.key != 'image' %}{% if column.key == 'owner_username' and not (current_user.is_super_admin() or current_user.is_admin()) %}{% else %}<td class="{% if column.type == 'currency' %}text-end{% endif %} {% if column.key == 'note' %}td-note-cell{% endif %}">{% if column.key == 'note' %}<div class="note-wrapper"><textarea class="order-note-textarea" data-order-id="{{ order.id }}" data-original-value="{{ order.note or '' }}" placeholder="Thêm ghi chú...">{{ order.note or '' }}</textarea><div class="save-status"></div></div>{% elif column.key == 'order_created_at' and order.order_created_at %}{{ order.order_created_at.strftime('%d-%m-%Y %H:%M') }}{% elif column.key == 'store_name' %}<a href="{{ url_for('stores.edit', store_id=order.store.id) }}">{{ order.store.name }}</a>{% elif column.key == 'wc_order_id' %}#{{ order.wc_order_id }}{% elif column.type == 'currency' %}${{ "{:,.2f}".format(order[column.key] or 0) }}{% elif column.key == 'status' %}<div class="status-update-form"><select class="form-select form-select-sm status-select status-{{ order.status }}" data-order-id="{{ order.id }}" data-original-status="{{ order.status }}">{% for status_val, status_text in statuses %}<option value="{{ status_val }}" {% if order.status == status_val %}selected{% endif %}>{{ status_text }}</option>{% endfor %}</select><button class="btn btn-sm btn-primary status-save-btn" disabled><i class="bi bi-save"></i></button></div>{% elif column.key == 'products' %}<ul class="product-list">{% for item in order.line_items %}<li><a href="#" data-bs-toggle="modal" data-bs-target="#imageModal" data-large-src="{{ item.image_url }}"><img src="{{ item.image_url }}" alt="{{ item.product_name }}" class="product-image"></a><div><strong>{{ item.product_name }}</strong> (SL: {{ item.quantity }})<br><span class="text-muted">SKU: {{ item.sku or 'N/A' }}</span></div></li>{% endfor %}</ul>
                 {% elif column.key == 'actions' %}
                     <div class="text-center d-flex gap-1 justify-content-center flex-wrap">
                         <button class="btn btn-sm btn-outline-info refund-btn" data-order-id="{{ order.id }}" data-wc-order-id="{{ order.wc_order_id }}" title="Xử lý hoàn tiền"><i class="bi bi-currency-exchange"></i></button>
                         <button class="btn btn-sm btn-outline-primary fulfill-btn" data-order-id="{{ order.id }}" title="Fulfill Đơn hàng"><i class="bi bi-send-fill"></i></button>
                     </div>
-                {% else %}<div title="{{ order[column.key] or '' }}">{{ order[column.key] or '' }}</div>{% endif %}</td>{% endif %}{% endfor %}</tr>{% else %}<tr><td colspan="{{ (columns_config | selectattr('visible') | rejectattr('key', 'equalto', 'image') | list | length) - (1 if not (current_user.is_super_admin() or current_user.is_admin()) and columns_config | selectattr('key', 'equalto', 'owner_username') | selectattr('visible') | list else 0) }}" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào phù hợp với bộ lọc.</td></tr>{% endfor %}</tbody>
+                {% else %}<div title="{{ order[column.key] or '' }}">{{ order[column.key] or '' }}</div>{% endif %}</td>{% endif %}{% endfor %}</tr>{% else %}<tr><td colspan="100%" class="text-center text-muted py-4">Không tìm thấy đơn hàng nào.</td></tr>{% endfor %}</tbody>
         </table>
     </div>
 </div>
 
 <div class="d-flex justify-content-center mt-4">
-    <nav aria-label="Order navigation">
-        {% if pagination and pagination.pages > 1 %}
-        <ul class="pagination">
+    {% if pagination and pagination.pages > 1 %}<nav><ul class="pagination">
             <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.prev_num, **query_params) }}">&laquo;</a></li>
-            {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                {% if page_num %}
-                    <li class="page-item {% if page_num == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=page_num, **query_params) }}">{{ page_num }}</a></li>
-                {% else %}
-                    <li class="page-item disabled"><span class="page-link">...</span></li>
-                {% endif %}
-            {% endfor %}
+            {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}{% if page_num %}<li class="page-item {% if page_num == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=page_num, **query_params) }}">{{ page_num }}</a></li>{% else %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}{% endfor %}
             <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ url_for('orders.manage_all_orders', page=pagination.next_num, **query_params) }}">&raquo;</a></li>
-        </ul>
-        {% endif %}
-    </nav>
+    </ul></nav>{% endif %}
 </div>
+
 <div class="modal fade" id="imageModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-body text-center"><img src="" class="img-fluid" id="modalImage"></div></div></div></div>
 
-<div class="modal fade" id="refundModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="refundModalLabel">Hoàn tiền cho Đơn hàng #<span id="refund-wc-order-id"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="refund-loader" class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Đang lấy chi tiết đơn hàng...</p></div><div id="refund-content" class="d-none"><div class="row"><div class="col-md-6"><h6>Tóm tắt</h6><ul id="refund-summary-list"><li><span>Tổng đơn hàng:</span><strong id="refund-total-amount"></strong></li><li><span>Đã hoàn tiền:</span><span id="refund-total-refunded" class="text-danger"></span></li><li><span>Có thể hoàn:</span><strong id="refund-refundable-amount" class="text-success"></strong></li></ul><hr><h6>Thông tin thanh toán</h6><p class="mb-1"><strong>Phương thức:</strong> <span id="refund-payment-method"></span></p><p class="mb-1"><strong>Mã giao dịch:</strong> <span id="refund-transaction-id"></span></p></div><div class="col-md-6"><h6>Lịch sử hoàn tiền</h6><div class="table-responsive" style="max-height: 200px; overflow-y: auto;"><table class="table table-sm table-bordered" id="refund-history-table"><thead class="table-light"><tr><th>Ngày</th><th>Lý do</th><th class="text-end">Số tiền</th></tr></thead><tbody id="refund-history-body"></tbody></table></div></div></div><hr><h6>Tạo Hoàn tiền mới</h6><div class="row g-3"><div class="col-md-6"><label for="refund-amount-input" class="form-label">Số tiền hoàn lại</label><input type="number" class="form-control" id="refund-amount-input" step="0.01" placeholder="0.00"></div><div class="col-md-6"><label for="refund-reason-input" class="form-label">Lý do hoàn tiền (tùy chọn)</label><input type="text" class="form-control" id="refund-reason-input" placeholder="Ví dụ: Hàng lỗi"></div></div></div></div><div class="modal-footer justify-content-between"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary refund-action-btn" id="process-refund-manual-btn" data-api-refund="false" disabled><i class="bi bi-pencil-square"></i> Hoàn tiền Thủ công <span class="refund-btn-amount"></span></button><button type="button" class="btn btn-primary refund-action-btn" id="process-refund-api-btn" data-api-refund="true" disabled><i class="bi bi-credit-card"></i> Hoàn tiền qua Cổng TT <span class="refund-btn-amount"></span></button></div></div></div></div></div>
+<div class="modal fade" id="refundModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="refundModalLabel">Hoàn tiền cho Đơn hàng #<span id="refund-wc-order-id"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="refund-loader" class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Đang lấy chi tiết đơn hàng...</p></div><div id="refund-content" class="d-none"><div class="row"><div class="col-md-6"><h6>Tóm tắt</h6><ul id="refund-summary-list" class="list-unstyled"><li><span>Tổng đơn hàng:</span><strong id="refund-total-amount"></strong></li><li><span>Đã hoàn tiền:</span><span id="refund-total-refunded" class="text-danger"></span></li><li><span>Có thể hoàn:</span><strong id="refund-refundable-amount" class="text-success"></strong></li></ul><hr><h6>Thông tin thanh toán</h6><p class="mb-1"><strong>Phương thức:</strong> <span id="refund-payment-method"></span></p><p class="mb-1"><strong>Mã giao dịch:</strong> <span id="refund-transaction-id"></span></p></div><div class="col-md-6"><h6>Lịch sử hoàn tiền</h6><div class="table-responsive" style="max-height: 200px; overflow-y: auto;"><table class="table table-sm table-bordered" id="refund-history-table"><thead class="table-light"><tr><th>Ngày</th><th>Lý do</th><th class="text-end">Số tiền</th></tr></thead><tbody id="refund-history-body"></tbody></table></div></div></div><hr><h6>Tạo Hoàn tiền mới</h6><div class="row g-3"><div class="col-md-6"><label for="refund-amount-input" class="form-label">Số tiền hoàn lại</label><input type="number" class="form-control" id="refund-amount-input" step="0.01" placeholder="0.00"></div><div class="col-md-6"><label for="refund-reason-input" class="form-label">Lý do hoàn tiền (tùy chọn)</label><input type="text" class="form-control" id="refund-reason-input" placeholder="Ví dụ: Hàng lỗi"></div></div></div></div><div class="modal-footer justify-content-between"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button><div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary refund-action-btn" id="process-refund-manual-btn" data-api-refund="false" disabled><i class="bi bi-pencil-square"></i> Hoàn tiền Thủ công <span class="refund-btn-amount"></span></button><button type="button" class="btn btn-primary refund-action-btn" id="process-refund-api-btn" data-api-refund="true" disabled><i class="bi bi-credit-card"></i> Hoàn tiền qua Cổng TT <span class="refund-btn-amount"></span></button></div></div></div></div></div>
 
-<div class="modal fade" id="fulfillProviderSelectModal" tabindex="-1" aria-labelledby="fulfillProviderSelectModalLabel" aria-hidden="true">
+<div class="modal fade" id="fulfillProviderSelectModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="fulfillProviderSelectModalLabel">Chọn nhà cung cấp Fulfillment</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted">Chọn một nhà cung cấp để tiếp tục gửi đơn hàng.</p>
-                <div id="fulfill-provider-list" class="d-grid gap-2">
-                </div>
-            </div>
+            <div class="modal-header"><h5 class="modal-title">Chọn nhà cung cấp Fulfillment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><div id="fulfill-provider-list" class="d-grid gap-2"></div></div>
         </div>
     </div>
 </div>
-<div class="modal fade" id="fulfillModal" tabindex="-1" aria-labelledby="fulfillModalLabel" aria-hidden="true">
+
+<div class="modal fade" id="fulfillModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <div id="fulfill-modal-content">
-                <div class="modal-body text-center p-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2 mb-0">Đang tải giao diện Fulfill...</p>
-                </div>
+        <div class="modal-content" id="fulfill-modal-content">
             </div>
-        </div>
     </div>
 </div>
 {% endblock %}
@@ -191,7 +108,7 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // === CÁC HÀM HELPER VÀ KHỞI TẠO CHUNG ===
+    // === HÀM TIỆN ÍCH CHUNG ===
     function showToast(message, category = 'info') {
         const toastContainer = document.querySelector('.toast-container');
         if (!toastContainer) return;
@@ -202,323 +119,205 @@ document.addEventListener('DOMContentLoaded', function() {
         const toastEl = document.createElement('div');
         toastEl.className = `toast align-items-center text-white ${bgColor} border-0`;
         toastEl.setAttribute('role', 'alert');
-        toastEl.setAttribute('aria-live', 'assertive');
-        toastEl.setAttribute('aria-atomic', 'true');
         toastEl.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
         toastContainer.appendChild(toastEl);
-        const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
-        toast.show();
-        toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
+        new bootstrap.Toast(toastEl, { delay: 5000 }).show();
     }
-
-    const adminFilter = document.getElementById('admin_id_filter');
-    if (adminFilter) { adminFilter.addEventListener('change', function() { const userFilter = document.getElementById('user_id_filter'); if(userFilter) userFilter.value = ""; document.getElementById('filters-form').submit(); }); }
-
+    
+    // === CÁC CHỨC NĂNG GỐC ĐÃ PHỤC HỒI ===
+    
+    // Xem ảnh lớn
     const imageModal = document.getElementById('imageModal');
-    if (imageModal) { imageModal.addEventListener('show.bs.modal', function (event) { imageModal.querySelector('#modalImage').src = event.relatedTarget.getAttribute('data-large-src'); }); }
+    if (imageModal) { imageModal.addEventListener('show.bs.modal', (event) => { imageModal.querySelector('#modalImage').src = event.relatedTarget.getAttribute('data-large-src'); }); }
 
+    // Tự động submit form filter khi thay đổi
+    document.querySelectorAll('#admin_id_filter, #user_id_filter, #store_id_filter, #status_filter').forEach(select => {
+        select.addEventListener('change', () => document.getElementById('filters-form').submit());
+    });
 
-    // === LOGIC XỬ LÝ NOTE VÀ STATUS ===
-    function initNoteSaving() {
-        document.querySelectorAll('.order-note-textarea').forEach(textarea => {
-            textarea.addEventListener('blur', function() {
-                const orderId = this.dataset.orderId;
-                const originalValue = this.dataset.originalValue;
-                const newValue = this.value;
-                const statusDiv = this.parentElement.querySelector('.save-status');
-                if (originalValue.trim() === newValue.trim()) { return; }
-                statusDiv.textContent = 'Đang lưu...';
-                statusDiv.className = 'save-status saving show';
-                fetch(`/orders/update_note/${orderId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ note: newValue })
-                })
-                .then(response => response.json().then(data => ({ ok: response.ok, data })))
-                .then(({ ok, data }) => {
-                    if (ok && data.success) {
-                        this.dataset.originalValue = newValue;
-                        statusDiv.textContent = 'Đã lưu!';
-                        statusDiv.className = 'save-status saved show';
-                    } else { throw new Error(data.message || 'Lỗi không xác định.'); }
-                })
-                .catch(error => {
-                    statusDiv.textContent = 'Lỗi!';
-                    statusDiv.className = 'save-status error show';
-                    this.value = originalValue;
-                    showToast('Lỗi khi lưu ghi chú: ' + error.message, 'danger');
-                })
-                .finally(() => { setTimeout(() => { statusDiv.classList.remove('show'); }, 2000); });
-            });
-        });
-    }
-
-    function initStatusUpdate() {
-        document.querySelectorAll('.status-select').forEach(select => {
-            const allStatusClasses = ['status-processing', 'status-completed', 'status-on-hold', 'status-failed', 'status-cancelled', 'status-refunded', 'status-pending'];
-            select.addEventListener('change', function() {
-                const originalStatus = this.dataset.originalStatus;
-                const newStatus = this.value;
-                const saveBtn = this.nextElementSibling;
-                saveBtn.disabled = (originalStatus === newStatus);
-                this.classList.remove(...allStatusClasses);
-                this.classList.add(`status-${newStatus}`);
-            });
-        });
-
-        document.querySelectorAll('.status-save-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const select = this.previousElementSibling;
-                const orderId = select.dataset.orderId;
-                const wcOrderId = select.dataset.wcOrderId;
-                const newStatus = select.value;
-                const originalHtml = this.innerHTML;
-                const allStatusClasses = ['status-processing', 'status-completed', 'status-on-hold', 'status-failed', 'status-cancelled', 'status-refunded', 'status-pending'];
-                this.disabled = true;
-                this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-                fetch(`/orders/update_status/${orderId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: newStatus })
-                })
-                .then(response => response.json().then(data => ({ ok: response.ok, data })))
-                .then(({ ok, data }) => {
-                    if (ok && data.success) {
-                        select.dataset.originalStatus = data.new_status;
-                        showToast(`Đơn hàng #${wcOrderId}: ${data.message}`, 'success');
-                    } else { throw new Error(data.message || 'Lỗi server.'); }
-                })
-                .catch(error => {
-                    const originalStatus = select.dataset.originalStatus;
-                    select.value = originalStatus;
-                    select.classList.remove(...allStatusClasses);
-                    select.classList.add(`status-${originalStatus}`);
-                    showToast(`Đơn hàng #${wcOrderId}: ${error.message}`, 'danger');
-                })
-                .finally(() => {
-                    this.innerHTML = '<i class="bi bi-save"></i>';
-                });
-            });
-        });
-    }
-
-    // === LOGIC HOÀN TIỀN ===
-    const refundModalElement = document.getElementById('refundModal');
-    const refundModal = new bootstrap.Modal(refundModalElement);
-    const refundLoader = document.getElementById('refund-loader');
-    const refundContent = document.getElementById('refund-content');
-    const refundAmountInput = document.getElementById('refund-amount-input');
-    const refundApiBtn = document.getElementById('process-refund-api-btn');
-    const refundManualBtn = document.getElementById('process-refund-manual-btn');
-    const allRefundBtns = [refundApiBtn, refundManualBtn];
-    let currentOrderIdForRefund = null;
-
-    function resetRefundModal() {
-        refundContent.classList.add('d-none');
-        refundLoader.classList.remove('d-none');
-        refundLoader.innerHTML = '<div class="spinner-border text-primary"></div><p class="mt-2">Đang lấy chi tiết đơn hàng...</p>';
-        document.getElementById('refund-reason-input').value = '';
-        refundAmountInput.value = '';
-        allRefundBtns.forEach(btn => { btn.disabled = true; btn.title = ''; });
-        document.querySelectorAll('.refund-btn-amount').forEach(span => span.textContent = '');
-        currentOrderIdForRefund = null;
-    }
-
-    async function handleRefundButtonClick(orderId, wcOrderId) {
-        currentOrderIdForRefund = orderId;
-        document.getElementById('refund-wc-order-id').textContent = wcOrderId;
-        refundModal.show();
-
-        try {
-            const response = await fetch(`/orders/get_refund_details/${currentOrderIdForRefund}`);
-            const data = await response.json();
-            if (!response.ok || !data.success) { throw new Error(data.message || 'Lỗi không xác định.'); }
-
-            const currencySymbol = data.currency === 'VND' ? '₫' : '$';
-            document.getElementById('refund-total-amount').textContent = `${parseFloat(data.total_amount).toLocaleString('en-US')} ${currencySymbol}`;
-            document.getElementById('refund-total-refunded').textContent = `-${parseFloat(data.total_refunded).toLocaleString('en-US')} ${currencySymbol}`;
-            document.getElementById('refund-refundable-amount').textContent = `${parseFloat(data.refundable_amount).toLocaleString('en-US')} ${currencySymbol}`;
-            document.getElementById('refund-payment-method').textContent = data.payment_method_title;
-            document.getElementById('refund-transaction-id').textContent = data.transaction_id || 'N/A';
-
-            const historyBody = document.getElementById('refund-history-body');
-            historyBody.innerHTML = data.refunds.length > 0 ? data.refunds.map(r => `<tr><td>${new Date(r.date).toLocaleString('vi-VN')}</td><td>${r.reason}</td><td class="text-end text-danger">-${parseFloat(r.amount).toLocaleString('en-US')} ${currencySymbol}</td></tr>`).join('') : '<tr><td colspan="3" class="text-center text-muted">Chưa có lịch sử hoàn tiền.</td></tr>';
-
-            refundAmountInput.max = data.refundable_amount;
-            refundAmountInput.value = data.refundable_amount;
-
-            refundApiBtn.disabled = ['bacs', 'cod'].includes(data.payment_method);
-            refundApiBtn.title = refundApiBtn.disabled ? 'Không thể hoàn tiền tự động cho phương thức thanh toán này' : '';
-            refundAmountInput.dispatchEvent(new Event('input'));
-
-            refundLoader.classList.add('d-none');
-            refundContent.classList.remove('d-none');
-        } catch (error) {
-            refundLoader.innerHTML = `<div class="alert alert-danger"><strong>Lỗi:</strong> ${error.message}</div>`;
-        }
-    }
-
-    async function handleRefundAction(refundActionBtn) {
-        const amount = refundAmountInput.value;
-        const reason = document.getElementById('refund-reason-input').value;
-        const apiRefund = refundActionBtn.dataset.apiRefund === 'true';
-
-        const originalBtnHtml = refundActionBtn.innerHTML;
-        allRefundBtns.forEach(b => b.disabled = true);
-        refundActionBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang xử lý...';
-
-        try {
-            const response = await fetch(`/orders/process_refund/${currentOrderIdForRefund}`, {
+    // Lưu ghi chú
+    document.querySelectorAll('.order-note-textarea').forEach(textarea => {
+        textarea.addEventListener('blur', function() {
+            if (this.dataset.originalValue === this.value) return;
+            const orderId = this.dataset.orderId;
+            const statusDiv = this.parentElement.querySelector('.save-status');
+            statusDiv.textContent = 'Đang lưu...';
+            statusDiv.className = 'save-status saving show';
+            fetch(`/orders/update_note/${orderId}`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({amount, reason, api_refund: apiRefund})
-            });
-            const data = await response.json();
-            if (!response.ok || !data.success) { throw new Error(data.message || 'Lỗi không xác định.'); }
-
-            showToast(data.message, 'success');
-            refundModal.hide();
-            setTimeout(() => window.location.reload(), 1500);
-        } catch (error) {
-            showToast(`Lỗi hoàn tiền: ${error.message}`, 'danger');
-            refundActionBtn.innerHTML = originalBtnHtml;
-            refundAmountInput.dispatchEvent(new Event('input'));
-        }
-    }
-
-    refundAmountInput.addEventListener('input', function() {
-        const amount = parseFloat(this.value) || 0;
-        const maxAmount = parseFloat(this.max) || 0;
-        const isValidAmount = amount > 0 && amount <= maxAmount;
-        refundManualBtn.disabled = !isValidAmount;
-        if (refundApiBtn.title === '') {
-            refundApiBtn.disabled = !isValidAmount;
-        }
-        document.querySelectorAll('.refund-btn-amount').forEach(span => {
-            span.textContent = isValidAmount ? ` (${amount.toLocaleString('en-US')})` : '';
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ note: this.value })
+            }).then(res => res.json()).then(data => {
+                if (!data.success) throw new Error(data.message);
+                this.dataset.originalValue = this.value;
+                statusDiv.textContent = 'Đã lưu!';
+                statusDiv.className = 'save-status saved show';
+            }).catch(err => {
+                statusDiv.textContent = 'Lỗi!';
+                statusDiv.className = 'save-status error show';
+                showToast(`Lỗi lưu ghi chú: ${err.message}`, 'danger');
+            }).finally(() => { setTimeout(() => statusDiv.classList.remove('show'), 2000); });
         });
     });
-    refundModalElement.addEventListener('hidden.bs.modal', resetRefundModal);
 
-    // === LOGIC FULFILLMENT ===
-    const fulfillProviderSelectModalEl = document.getElementById('fulfillProviderSelectModal');
-    const fulfillProviderSelectModal = new bootstrap.Modal(fulfillProviderSelectModalEl);
-    const fulfillModalEl = document.getElementById('fulfillModal');
-    const fulfillModal = new bootstrap.Modal(fulfillModalEl);
+    // Cập nhật trạng thái
+    document.querySelectorAll('.status-select').forEach(select => {
+        const allStatusClasses = ['status-processing', 'status-completed', 'status-on-hold', 'status-failed', 'status-cancelled', 'status-refunded', 'status-pending'];
+        select.addEventListener('change', function() {
+            this.nextElementSibling.disabled = (this.dataset.originalStatus === this.value);
+            this.classList.remove(...allStatusClasses);
+            this.classList.add(`status-${this.value}`);
+        });
+    });
+    document.querySelectorAll('.status-save-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const select = this.previousElementSibling;
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            fetch(`/orders/update_status/${select.dataset.orderId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: select.value })
+            }).then(res => res.json()).then(data => {
+                if (!data.success) throw new Error(data.message);
+                select.dataset.originalStatus = data.new_status;
+                showToast(`Đơn #${select.dataset.wcOrderId}: ${data.message}`, 'success');
+            }).catch(err => {
+                const originalStatus = select.dataset.originalStatus;
+                select.value = originalStatus;
+                select.classList.remove(...select.classList);
+                select.classList.add('form-select', 'form-select-sm', 'status-select', `status-${originalStatus}`);
+                showToast(`Đơn #${select.dataset.wcOrderId}: ${err.message}`, 'danger');
+            }).finally(() => { this.innerHTML = '<i class="bi bi-save"></i>'; });
+        });
+    });
+
+    // Hoàn tiền (Refund)
+    const refundModal = new bootstrap.Modal(document.getElementById('refundModal'));
+    let currentRefundData = {};
+    document.querySelectorAll('.refund-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            currentRefundData = { orderId: this.dataset.orderId, wcOrderId: this.dataset.wcOrderId };
+            document.getElementById('refund-wc-order-id').textContent = currentRefundData.wcOrderId;
+            document.getElementById('refund-content').classList.add('d-none');
+            document.getElementById('refund-loader').classList.remove('d-none');
+            refundModal.show();
+            try {
+                const res = await fetch(`/orders/get_refund_details/${currentRefundData.orderId}`);
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.message);
+                currentRefundData.maxAmount = parseFloat(data.refundable_amount);
+                document.getElementById('refund-total-amount').textContent = `${parseFloat(data.total_amount).toLocaleString()} ${data.currency}`;
+                document.getElementById('refund-total-refunded').textContent = `-${parseFloat(data.total_refunded).toLocaleString()} ${data.currency}`;
+                document.getElementById('refund-refundable-amount').textContent = `${currentRefundData.maxAmount.toLocaleString()} ${data.currency}`;
+                const refundApiBtn = document.getElementById('process-refund-api-btn');
+                refundApiBtn.disabled = !data.payment_method.match(/stripe|paypal/); // Ví dụ
+                const historyBody = document.getElementById('refund-history-body');
+                historyBody.innerHTML = data.refunds.length ? data.refunds.map(r => `<tr><td>${new Date(r.date).toLocaleString()}</td><td>${r.reason}</td><td class="text-end text-danger">-${parseFloat(r.amount).toLocaleString()} ${data.currency}</td></tr>`).join('') : '<tr><td colspan="3" class="text-center">Chưa có lịch sử.</td></tr>';
+                document.getElementById('refund-amount-input').value = currentRefundData.maxAmount;
+                document.getElementById('refund-amount-input').dispatchEvent(new Event('input'));
+                document.getElementById('refund-loader').classList.add('d-none');
+                document.getElementById('refund-content').classList.remove('d-none');
+            } catch (err) {
+                document.getElementById('refund-loader').innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+            }
+        });
+    });
+    document.getElementById('refund-amount-input').addEventListener('input', function() {
+        const amount = parseFloat(this.value) || 0;
+        const isValid = amount > 0 && amount <= currentRefundData.maxAmount;
+        document.querySelectorAll('.refund-action-btn').forEach(btn => {
+            if (btn.id === 'process-refund-api-btn' && btn.disabled) return;
+            btn.disabled = !isValid;
+        });
+    });
+    document.querySelectorAll('.refund-action-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const apiRefund = this.dataset.apiRefund === 'true';
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            fetch(`/orders/process_refund/${currentRefundData.orderId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: document.getElementById('refund-amount-input').value, reason: document.getElementById('refund-reason-input').value, api_refund: apiRefund })
+            }).then(res => res.json()).then(data => {
+                if (!data.success) throw new Error(data.message);
+                showToast(data.message, 'success');
+                refundModal.hide();
+                setTimeout(() => window.location.reload(), 1500);
+            }).catch(err => {
+                showToast(`Lỗi hoàn tiền: ${err.message}`, 'danger');
+                this.innerHTML = apiRefund ? 'Hoàn tiền qua Cổng TT' : 'Hoàn tiền Thủ công';
+                this.disabled = false;
+            });
+        });
+    });
+    
+    // === LOGIC FULFILLMENT (ỔN ĐỊNH VÀ ĐÁNG TIN CẬY) ===
+    const fulfillProviderSelectModal = new bootstrap.Modal(document.getElementById('fulfillProviderSelectModal'));
+    const fulfillModal = new bootstrap.Modal(document.getElementById('fulfillModal'));
     let currentOrderIdForFulfill = null;
 
     const availableProviders = [
-        {
-            key: 'mangotee',
-            name: 'Fulfill qua MangoTee',
-            logo: 'https://stripeptechgo.sfo3.cdn.digitaloceanspaces.com/LogoFF/logomango.png'
-        }
+        { key: 'mangotee', name: 'Fulfill qua MangoTee', logo: 'https://stripeptechgo.sfo3.cdn.digitaloceanspaces.com/LogoFF/logomango.png' }
     ];
 
-    // --- START: SỬA LỖI CUỐI CÙNG ---
     async function openFulfillInterface(providerKey) {
         const fulfillModalContent = document.getElementById('fulfill-modal-content');
-        fulfillModalContent.innerHTML = `
-            <div class="modal-body text-center p-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2 mb-0">Đang tải giao diện Fulfill...</p>
-            </div>`;
+        fulfillModalContent.innerHTML = `<div class="modal-body text-center p-5"><div class="spinner-border text-primary"></div><p class="mt-2">Đang tải...</p></div>`;
         fulfillModal.show();
 
         try {
-            const templateResponse = await fetch(`/orders/get_fulfillment_template/${providerKey}`);
-            if (!templateResponse.ok) {
-                throw new Error('Không thể tải giao diện fulfill (lỗi server: ' + templateResponse.status + ')');
-            }
-            const templateHtml = await templateResponse.text();
-
-            // Tách riêng phần HTML và phần SCRIPT
-            const scriptRegex = /<script>([\s\S]*?)<\/script>/i;
-            const scriptMatch = templateHtml.match(scriptRegex);
-            const htmlContent = templateHtml.replace(scriptRegex, '');
+            const response = await fetch(`/orders/get_fulfillment_template/${providerKey}`);
+            if (!response.ok) throw new Error(`Lỗi ${response.status}: Không thể tải giao diện của nhà cung cấp.`);
+            const templateHtml = await response.text();
             
-            // Chèn phần HTML vào trước
-            fulfillModalContent.innerHTML = htmlContent;
+            fulfillModalContent.innerHTML = templateHtml;
 
-            // Nếu có script, tạo thẻ script mới và cho chạy
-            if (scriptMatch && scriptMatch[1]) {
-                const scriptContent = scriptMatch[1];
-                
-                // Xóa script cũ nếu có để tránh chạy nhiều lần
-                const oldScript = document.getElementById('fulfill-script');
-                if (oldScript) {
-                    oldScript.remove();
-                }
-
+            // Kỹ thuật thực thi script an toàn
+            const scriptTag = fulfillModalContent.querySelector('script');
+            if (scriptTag) {
                 const newScript = document.createElement('script');
-                newScript.id = 'fulfill-script'; // Gán ID để có thể xóa ở lần chạy sau
-                newScript.textContent = scriptContent;
-                document.body.appendChild(newScript);
-                
-                // Script đã chạy xong, bây giờ hàm global phải tồn tại
-                if (window.initFulfillMangotee) {
-                    window.initFulfillMangotee(currentOrderIdForFulfill);
-                } else {
-                    throw new Error("Lỗi nghiêm trọng: Hàm initFulfillMangotee không được định nghĩa sau khi chạy script.");
-                }
-            } else {
-                 throw new Error("Lỗi: Không tìm thấy thẻ <script> trong file template.");
+                newScript.textContent = scriptTag.textContent;
+                document.body.appendChild(newScript).remove();
             }
 
+            // Gọi hàm init toàn cục từ script vừa chạy
+            const initFunctionName = `initFulfill${providerKey.charAt(0).toUpperCase() + providerKey.slice(1)}`;
+            if (window[initFunctionName]) {
+                window[initFunctionName](currentOrderIdForFulfill);
+            } else {
+                throw new Error(`Lỗi: Không tìm thấy hàm khởi tạo ${initFunctionName}.`);
+            }
         } catch (error) {
-            fulfillModalContent.innerHTML = `<div class="modal-body"><div class="alert alert-danger mb-0">${error.message}</div></div>`;
+            fulfillModalContent.innerHTML = `<div class="modal-body"><div class="alert alert-danger">${error.message}</div></div>`;
         }
     }
-    // --- END: SỬA LỖI CUỐI CÙNG ---
 
-    document.body.addEventListener('click', async function(e) {
+    // Listener chính cho các hành động trên dòng
+    document.body.addEventListener('click', function(e) {
         const fulfillBtn = e.target.closest('.fulfill-btn');
-        const providerSelectBtn = e.target.closest('.provider-select-btn');
-        const refundBtn = e.target.closest('.refund-btn');
-        const refundActionBtn = e.target.closest('.refund-action-btn');
-
         if (fulfillBtn) {
             e.preventDefault();
             currentOrderIdForFulfill = fulfillBtn.dataset.orderId;
             const providerListDiv = document.getElementById('fulfill-provider-list');
             providerListDiv.innerHTML = '';
-            availableProviders.forEach(provider => {
-                providerListDiv.innerHTML += `
-                    <button type="button" class="btn btn-outline-primary provider-select-btn provider-btn" data-provider-key="${provider.key}">
-                        <img src="${provider.logo}" alt="${provider.name} logo">
-                        <span>${provider.name}</span>
-                    </button>`;
+            availableProviders.forEach(p => {
+                providerListDiv.innerHTML += `<button type="button" class="btn btn-outline-primary provider-select-btn provider-btn" data-provider-key="${p.key}"><img src="${p.logo}"><span>${p.name}</span></button>`;
             });
             fulfillProviderSelectModal.show();
-            return;
         }
-
-        if (providerSelectBtn) {
-            e.preventDefault();
-            const providerKey = providerSelectBtn.dataset.providerKey;
+    });
+    // Listener cho việc chọn nhà cung cấp
+    document.getElementById('fulfill-provider-list').addEventListener('click', function(e) {
+        const providerBtn = e.target.closest('.provider-select-btn');
+        if(providerBtn) {
+            const providerKey = providerBtn.dataset.providerKey;
             fulfillProviderSelectModal.hide();
-            setTimeout(() => { openFulfillInterface(providerKey); }, 200);
-            return;
-        }
-
-        if (refundBtn) {
-            e.preventDefault();
-            const orderId = refundBtn.dataset.orderId;
-            const wcOrderId = refundBtn.dataset.wcOrderId;
-            handleRefundButtonClick(orderId, wcOrderId);
-            return;
-        }
-
-        if (refundActionBtn) {
-            e.preventDefault();
-            handleRefundAction(refundActionBtn);
-            return;
+            setTimeout(() => openFulfillInterface(providerKey), 200);
         }
     });
 
-    // Khởi chạy các chức năng
-    initNoteSaving();
-    initStatusUpdate();
 });
 </script>
 {% endblock %}

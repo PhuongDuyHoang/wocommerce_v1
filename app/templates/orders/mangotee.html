@@ -1,82 +1,22 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-
 <style>
-    .design-thumbnail-container{width:42px;height:42px;display:flex;align-items:center;justify-content:center}.design-thumbnail{width:38px;height:38px;object-fit:contain;cursor:pointer;border:1px solid #dee2e6;border-radius:4px;background-color:#f8f9fa}#viewDesignModal .modal-content{background-color:rgba(0, 0, 0, 0.2);border:none;box-shadow:none}#viewDesignModal .modal-header{position:absolute;top:-1rem;right:-1rem;z-index:1056;border-bottom:0}
-
-    /* CSS cho chức năng autocomplete mới */
-    .autocomplete-container {
-        position: relative;
-    }
-    .autocomplete-items {
-        position: absolute;
-        border: 1px solid #dee2e6;
-        border-top: none;
-        z-index: 1050; /* Cao hơn các thành phần khác trong modal */
-        top: 100%;
-        left: 0;
-        right: 0;
-        max-height: 220px;
-        overflow-y: auto;
-        background-color: white;
-    }
-    .autocomplete-items .dropdown-item {
-        cursor: pointer;
-        white-space: normal;
-    }
-     .autocomplete-items .dropdown-item:hover {
-        background-color: #e9ecef;
-    }
-
-    /* SỬA ĐỔI: Tăng kích thước modal chọn design */
-    #designSelectModal .modal-dialog {
-        max-width: 95%;
-        height: 90vh; /* Đặt chiều cao mong muốn (90% chiều cao màn hình) */
-        margin-top: 2.5vh; /* Căn ra giữa theo chiều dọc một chút */
-        margin-bottom: 2.5vh;
-    }
-
-    #designSelectModal .modal-content {
-        height: 100%;
-        overflow: hidden; /* Tránh 2 thanh cuộn chồng chéo */
-    }
-
-    /* === MÃ MỚI: CSS cho icon xem nhanh design === */
-    .card-img-top-container {
-        position: relative;
-        height: 120px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #f8f9fa;
-    }
-    .card-img-top-container .card-img-top {
-        max-height: 100%;
-        max-width: 100%;
-        object-fit: contain;
-    }
-    .view-design-btn {
-        position: absolute;
-        top: 5px;
-        right: 5px;
-        cursor: pointer;
-        z-index: 10;
-        padding: 0.25rem;
-        background-color: rgba(0, 0, 0, 0.5);
-        color: white;
-        border-radius: 50%;
-        line-height: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 28px;
-        height: 28px;
-    }
-    .view-design-btn:hover {
-        background-color: rgba(0, 0, 0, 0.8);
-    }
-    /* === KẾT THÚC MÃ MỚI === */
-
+    /* CSS cho modal và các thành phần */
+    .design-thumbnail-container{width:42px;height:42px;display:flex;align-items:center;justify-content:center}
+    .design-thumbnail{width:38px;height:38px;object-fit:contain;cursor:pointer;border:1px solid #dee2e6;border-radius:4px;background-color:#f8f9fa}
+    .autocomplete-container{position:relative}
+    .autocomplete-items{position:absolute;border:1px solid #dee2e6;border-top:none;z-index:1060;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background-color:white}
+    .autocomplete-items .dropdown-item{cursor:pointer;white-space:normal;}
+    .autocomplete-items .dropdown-item:hover{background-color:#e9ecef;}
+    #designSelectModal .modal-dialog{max-width:95%;height:90vh;margin-top:2.5vh;margin-bottom:2.5vh}
+    #designSelectModal .modal-content{height:100%;overflow:hidden}
+    .card-img-top-container{position:relative;height:120px;display:flex;align-items:center;justify-content:center;background-color:#f8f9fa}
+    .card-img-top-container .card-img-top{max-height:100%;max-width:100%;object-fit:contain}
+    .view-design-btn{position:absolute;top:5px;right:5px;cursor:pointer;z-index:10;padding:0.25rem;background-color:rgba(0,0,0,0.5);color:white;border-radius:50%;line-height:1;display:flex;align-items:center;justify-content:center;width:28px;height:28px}
+    .view-design-btn:hover{background-color:rgba(0,0,0,0.8)}
+    #viewDesignModal .modal-content{background-color:rgba(0,0,0,0.2);border:none;box-shadow:none}
+    #viewDesignModal .modal-header{position:absolute;top:-1rem;right:-1rem;z-index:1061;border-bottom:0}
 </style>
+
 <div class="modal-header">
     <h5 class="modal-title" id="fulfillModalLabel">
         <img src="https://stripeptechgo.sfo3.cdn.digitaloceanspaces.com/LogoFF/logomango.png" alt="MangoTee Logo" style="height: 24px; margin-right: 8px;">
@@ -84,20 +24,21 @@
     </h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
+
 <div class="modal-body">
     <div id="mangotee-loader" class="text-center py-5">
         <div class="spinner-border text-primary" role="status"></div>
-        <p class="mt-2">Đang tải tài nguyên sản phẩm...</p>
+        <p class="mt-2">Đang tải tài nguyên...</p>
     </div>
-
     <form id="mangotee-form" class="d-none">
         <h6>1. Thông tin giao hàng</h6>
         <div class="row">
             <div class="col-md-3 mb-2"><label for="shipping-first-name" class="form-label">Họ & Tên đệm</label><input type="text" class="form-control" id="shipping-first-name" required></div>
             <div class="col-md-3 mb-2"><label for="shipping-last-name" class="form-label">Tên</label><input type="text" class="form-control" id="shipping-last-name" required></div>
-            <div class="col-md-6 mb-2"><label for="shipping-email" class="form-label">Email</label><input type="email" class="form-control" id="shipping-email" required></div>
+            <div class="col-md-6 mb-2"><label for="shipping-email" class="form-label">Email</label><input type="email" class="form-control" id="shipping-email"></div>
             <div class="col-md-6 mb-2"><label for="shipping-phone" class="form-label">Số điện thoại</label><input type="text" class="form-control" id="shipping-phone" required></div>
-            <div class="col-md-6 mb-2"><label for="shipping-address1" class="form-label">Địa chỉ</label><input type="text" class="form-control" id="shipping-address1" required></div>
+            <div class="col-md-6 mb-2"><label for="shipping-address1" class="form-label">Địa chỉ 1</label><input type="text" class="form-control" id="shipping-address1" required></div>
+            <div class="col-md-6 mb-2"><label for="shipping-address2" class="form-label">Địa chỉ 2 (tùy chọn)</label><input type="text" class="form-control" id="shipping-address2"></div>
             <div class="col-md-4 mb-2"><label for="shipping-city" class="form-label">Thành phố</label><input type="text" class="form-control" id="shipping-city" required></div>
             <div class="col-md-4 mb-2"><label for="shipping-state" class="form-label">Bang/Tỉnh</label><input type="text" class="form-control" id="shipping-state" required></div>
             <div class="col-md-4 mb-2"><label for="shipping-zip" class="form-label">Mã ZIP/Bưu điện</label><input type="text" class="form-control" id="shipping-zip" required></div>
@@ -110,7 +51,6 @@
             <div class="col-md-3 mb-3"><label for="mangotee-facility-code" class="form-label">Facility Code</label><select class="form-select" id="mangotee-facility-code"><option value="" selected>(Để trống)</option><option value="SJ">SJ</option><option value="VA">VA</option><option value="TX">TX</option></select></div>
         </div>
         <hr>
-
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="mb-0">2. Sản phẩm Fulfill</h6>
             <button type="button" class="btn btn-sm btn-success" id="add-product-btn"><i class="bi bi-plus-circle"></i> Thêm sản phẩm</button>
@@ -118,25 +58,19 @@
         <div id="mangotee-line-items-container"></div>
     </form>
 </div>
+
 <div class="modal-footer">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
     <button type="submit" form="mangotee-form" class="btn btn-primary" id="mangotee-submit-btn" disabled><i class="bi bi-send-fill"></i> Gửi đơn hàng</button>
 </div>
 
-<div class="modal fade" id="designSelectModal" tabindex="-1" aria-labelledby="designSelectModalLabel" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="designSelectModalLabel">Chọn Design</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="input-group mb-3"><input type="text" id="design-search-input" class="form-control" placeholder="Tìm tên design..."><button class="btn btn-outline-secondary" type="button" id="design-search-btn"><i class="bi bi-search"></i></button></div><div id="design-grid" class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 row-cols-xl-8 g-3"></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button></div></div></div></div>
-<div class="modal fade" id="viewDesignModal" tabindex="-1" aria-labelledby="viewDesignModalLabel" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body text-center p-0"><img src="" id="viewDesignImage" class="img-fluid" style="max-height: 80vh; border-radius: .5rem;"></div></div></div></div>
+<div class="modal fade" id="designSelectModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Chọn Design</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body d-flex flex-column"><div class="input-group mb-3 sticky-top bg-light py-2"><input type="text" id="design-search-input" class="form-control" placeholder="Tìm tên design..."><button class="btn btn-outline-secondary" type="button" id="design-search-btn"><i class="bi bi-search"></i></button></div><div style="overflow-y: auto; flex-grow: 1;"><div id="design-grid" class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 row-cols-xl-8 g-3"></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button></div></div></div></div>
+<div class="modal fade" id="viewDesignModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body text-center p-0"><img src="" id="viewDesignImage" class="img-fluid" style="max-height: 80vh; border-radius: .5rem;"></div></div></div></div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-const fulfillState = {
-    productMap: new Map(),
-    allDesigns: [],
-    productCardIndex: 0,
-    isDataLoaded: false,
-    currentTarget: {}
-};
-
-window.initFulfillMangotee = async (orderId) => {
+window.initFulfillMangotee = (orderId) => {
+    const fulfillState = { productMap: new Map(), allDesigns: [], productCardIndex: 0, isDataLoaded: false, currentTarget: {} };
+    
     const loader = document.getElementById('mangotee-loader');
     const form = document.getElementById('mangotee-form');
     const submitBtn = document.getElementById('mangotee-submit-btn');
@@ -149,87 +83,65 @@ window.initFulfillMangotee = async (orderId) => {
     const designSearchInput = document.getElementById('design-search-input');
     const designSearchBtn = document.getElementById('design-search-btn');
 
-    form.reset();
-    lineItemsContainer.innerHTML = '';
-    loader.classList.remove('d-none');
-    form.classList.add('d-none');
-    fulfillState.productCardIndex = 0;
+    const showToast = (message, category = 'info') => {
+        document.getElementById('fulfillModal').dispatchEvent(new CustomEvent('show-toast', { detail: { message, category }, bubbles: true }));
+    };
     
-    function showToast(message, category = 'info') {
-        const toastContainer = document.querySelector('.toast-container');
-        if (!toastContainer) return;
-        let bgColor = 'bg-primary';
-        if (category === 'success') bgColor = 'bg-success';
-        if (category === 'danger') bgColor = 'bg-danger';
-        const toastEl = document.createElement('div');
-        toastEl.className = `toast align-items-center text-white ${bgColor} border-0`;
-        toastEl.setAttribute('role', 'alert');
-        toastEl.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
-        toastContainer.appendChild(toastEl);
-        const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
-        toast.show();
-        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
-    }
+    const populateShippingInfo = (data) => {
+        if (!data) return;
+        const shipping = data.shipping_address || {};
+        const billing = data.billing || {};
+        document.getElementById('shipping-first-name').value = shipping.first_name || '';
+        document.getElementById('shipping-last-name').value = shipping.last_name || '';
+        document.getElementById('shipping-email').value = billing.email || '';
+        document.getElementById('shipping-phone').value = billing.phone || '';
+        document.getElementById('shipping-address1').value = shipping.address_1 || '';
+        document.getElementById('shipping-address2').value = shipping.address_2 || '';
+        document.getElementById('shipping-city').value = shipping.city || '';
+        document.getElementById('shipping-state').value = shipping.state || '';
+        document.getElementById('shipping-zip').value = shipping.postcode || '';
+        document.getElementById('shipping-country').value = shipping.country || 'US';
+        document.getElementById('mangotee-order-id').value = data.wc_order_id ? `WC-${data.wc_order_id}` : '';
+    };
 
-    // === HÀM ĐÃ SỬA ĐỔI: renderDesigns ===
-    function renderDesigns(query = '') {
-        const lowerCaseQuery = query.toLowerCase();
-        const filteredDesigns = fulfillState.allDesigns.filter(d => d.name.toLowerCase().includes(lowerCaseQuery));
-        designGrid.innerHTML = '';
-        if (filteredDesigns.length === 0) {
-            designGrid.innerHTML = '<p class="text-muted ms-3">Không tìm thấy design nào.</p>';
-        } else {
-            filteredDesigns.forEach(design => {
-                const col = document.createElement('div');
-                col.className = 'col';
-                // Cập nhật HTML để bao gồm container, ảnh, và icon xem nhanh
-                col.innerHTML = `
-                    <div class="card h-100" data-design-url="${design.image_url}" style="cursor: pointer;">
-                        <div class="card-img-top-container">
-                            <img src="${design.image_url}" class="card-img-top" alt="${design.name}">
-                            <span class="view-design-btn" data-view-url="${design.image_url}">
-                                <i class="bi bi-eye-fill" style="pointer-events: none;"></i>
-                            </span>
-                        </div>
-                        <div class="card-body p-2">
-                            <p class="card-text small text-truncate" title="${design.name}">${design.name}</p>
-                        </div>
-                    </div>`;
-                designGrid.appendChild(col);
-            });
-        }
-    }
+    const renderDesigns = (query = '') => {
+        const filteredDesigns = fulfillState.allDesigns.filter(d => d.name.toLowerCase().includes(query.toLowerCase()));
+        designGrid.innerHTML = filteredDesigns.map(design => `
+            <div class="col">
+                <div class="card h-100" data-design-url="${design.image_url}" style="cursor: pointer;">
+                    <div class="card-img-top-container">
+                        <img src="${design.image_url}" class="card-img-top" alt="${design.name}" loading="lazy">
+                        <span class="view-design-btn" data-view-url="${design.image_url}"><i class="bi bi-eye-fill" style="pointer-events: none;"></i></span>
+                    </div>
+                    <div class="card-body p-2"><p class="card-text small text-truncate" title="${design.name}">${design.name}</p></div>
+                </div>
+            </div>`).join('') || '<p class="text-muted col-12">Không tìm thấy design nào.</p>';
+    };
 
-    async function initialize() {
+    const initialize = async () => {
         try {
             if (!fulfillState.isDataLoaded) {
-                const [productsRes, designsRes] = await Promise.all([
+                const [detailsRes, productsRes, designsRes] = await Promise.all([
+                    fetch(`/orders/api/fulfillment_details/${orderId}`),
                     fetch('/orders/api/fulfillment_products/mangotee'),
-                    fetch(`/designs/api/all`)
+                    fetch('/designs/api/all')
                 ]);
-                const productsData = await productsRes.json();
-                if (!productsRes.ok || !productsData.success) throw new Error(productsData.message || 'Lỗi tải sản phẩm NCC.');
-
-                fulfillState.productMap.clear();
-                productsData.data.products.forEach(p => {
+                const detailsPayload = await detailsRes.json();
+                const productsPayload = await productsRes.json();
+                const designsPayload = await designsRes.json();
+                if (!detailsPayload.success) throw new Error(detailsPayload.message);
+                if (!productsPayload.success) throw new Error(productsPayload.message);
+                if (!designsPayload.success) throw new Error(designsPayload.message);
+                fulfillState.allDesigns = designsPayload.designs;
+                productsPayload.data.products.forEach(p => {
                     if (p && p.name && p.variations) {
-                        const variants = p.variations.map(v => ({
-                            displayText: `${v.color} - ${v.size}`,
-                            searchText: `${v.color} ${v.size}`.toLowerCase(),
-                            sku: v.sku
-                        })).filter(v => v.sku);
-                        
+                        const variants = p.variations.map(v => ({ displayText: `${v.color} - ${v.size}`, searchText: `${v.color} ${v.size}`.toLowerCase(), sku: v.sku })).filter(v => v.sku);
                         const key = `${p.printer}|${p.name}`;
-                        if (!fulfillState.productMap.has(key)) {
-                            fulfillState.productMap.set(key, []);
-                        }
+                        if (!fulfillState.productMap.has(key)) fulfillState.productMap.set(key, []);
                         fulfillState.productMap.get(key).push(...variants);
                     }
                 });
-                
-                const designsData = await designsRes.json();
-                if (!designsRes.ok) throw new Error('Lỗi tải design.');
-                fulfillState.allDesigns = designsData.designs;
+                populateShippingInfo(detailsPayload.data);
                 fulfillState.isDataLoaded = true;
             }
             loader.classList.add('d-none');
@@ -238,12 +150,11 @@ window.initFulfillMangotee = async (orderId) => {
             renderDesigns();
             addProductCard();
         } catch (error) {
-            const modalBody = document.querySelector('#fulfillModal .modal-body');
-            modalBody.innerHTML = `<div class="alert alert-danger"><b>Khởi tạo thất bại:</b> ${error.message}<br>Vui lòng đóng và thử lại.</div>`;
+            document.querySelector('#fulfillModal .modal-body').innerHTML = `<div class="alert alert-danger"><b>Khởi tạo thất bại:</b> ${error.message}</div>`;
         }
-    }
-
-    function addProductCard() {
+    };
+    
+    const addProductCard = () => {
         const index = fulfillState.productCardIndex++;
         const cardWrapper = document.createElement('div');
         cardWrapper.className = 'card mb-3 line-item-card';
@@ -251,162 +162,114 @@ window.initFulfillMangotee = async (orderId) => {
             <div class="card-body">
                 <button type="button" class="btn-close float-end remove-product-btn"></button>
                 <div class="row g-2 align-items-end">
-                    <div class="col-md-5">
-                        <label class="form-label small">1. Chọn loại sản phẩm</label>
-                        <div class="autocomplete-container">
-                            <input type="text" class="form-control product-type-input" placeholder="Gõ để tìm loại SP..." autocomplete="off" required>
-                            <input type="hidden" class="selected-product-name">
-                            <div class="autocomplete-items dropdown-menu w-100"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-5">
-                        <label class="form-label small">2. Chọn biến thể (Màu/Size)</label>
-                        <div class="autocomplete-container">
-                            <input type="text" class="form-control variant-input" placeholder="Chọn loại SP trước" autocomplete="off" required disabled>
-                            <input type="hidden" class="variant-sku-input" required>
-                            <div class="autocomplete-items dropdown-menu w-100"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label small">Số lượng</label>
-                        <input type="number" class="form-control mangotee-quantity-input" value="1" min="1" required>
-                    </div>
+                    <div class="col-md-5"><label class="form-label small">1. Loại sản phẩm</label><div class="autocomplete-container"><input type="text" class="form-control product-type-input" placeholder="Gõ để tìm..." autocomplete="off" required><input type="hidden" class="selected-product-name"><div class="autocomplete-items dropdown-menu w-100"></div></div></div>
+                    <div class="col-md-5"><label class="form-label small">2. Biến thể (Màu/Size)</label><div class="autocomplete-container"><input type="text" class="form-control variant-input" placeholder="Chọn SP trước" autocomplete="off" required disabled><input type="hidden" class="variant-sku-input" required><div class="autocomplete-items dropdown-menu w-100"></div></div></div>
+                    <div class="col-md-2"><label class="form-label small">Số lượng</label><input type="number" class="form-control mangotee-quantity-input" value="1" min="1" required></div>
                     <div class="col-md-6 mt-3"><label class="form-label small">3. Design mặt trước</label><div class="d-flex align-items-center"><div class="design-thumbnail-container me-2" id="front-thumb-container-${index}"></div><div class="input-group"><button class="btn btn-primary select-design-btn" type="button" data-target-input="front-input-${index}" data-target-thumb="front-thumb-container-${index}">Chọn</button><input type="text" class="form-control form-control-sm design-input" id="front-input-${index}" required></div></div></div>
                     <div class="col-md-6 mt-3"><label class="form-label small">4. Design mặt sau (nếu có)</label><div class="d-flex align-items-center"><div class="design-thumbnail-container me-2" id="back-thumb-container-${index}"></div><div class="input-group"><button class="btn btn-primary select-design-btn" type="button" data-target-input="back-input-${index}" data-target-thumb="back-thumb-container-${index}">Chọn</button><input type="text" class="form-control form-control-sm design-input" id="back-input-${index}"></div></div></div>
                 </div>
             </div>`;
         lineItemsContainer.appendChild(cardWrapper);
-    }
+    };
 
-    function handleAutocomplete(inputElement, sourceFunction) {
-        const query = inputElement.value.toLowerCase();
-        const container = inputElement.closest('.autocomplete-container');
+    const handleAutocomplete = (input, sourceFunc) => {
+        const container = input.closest('.autocomplete-container');
         const dropdown = container.querySelector('.autocomplete-items');
-        const items = sourceFunction(inputElement);
-
         dropdown.innerHTML = '';
+        const items = sourceFunc(input);
         if (items.length > 0) {
             items.forEach(itemData => {
                 const itemEl = document.createElement('a');
                 itemEl.className = 'dropdown-item';
                 itemEl.href = '#';
-                itemEl.textContent = itemData.displayText;
-                itemEl.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    itemData.onSelect(inputElement);
-                    dropdown.classList.remove('show');
-                });
+                itemEl.innerHTML = itemData.displayText.replace(new RegExp(input.value, 'gi'), '<strong>$&</strong>');
+                itemEl.addEventListener('click', e => { e.preventDefault(); itemData.onSelect(input); dropdown.classList.remove('show'); });
                 dropdown.appendChild(itemEl);
             });
             dropdown.classList.add('show');
-        } else {
-            dropdown.classList.remove('show');
-        }
-    }
-
-    lineItemsContainer.addEventListener('input', (e) => {
-        const target = e.target;
-        if (target.classList.contains('product-type-input')) {
-            handleAutocomplete(target, getProductTypeSource);
-        } else if (target.classList.contains('variant-input')) {
-            handleAutocomplete(target, getVariantSource);
-        }
-    });
-
-    lineItemsContainer.addEventListener('focusin', (e) => {
-        const target = e.target;
-        if (target.classList.contains('product-type-input')) {
-            handleAutocomplete(target, getProductTypeSource);
-        } else if (target.classList.contains('variant-input')) {
-            handleAutocomplete(target, getVariantSource);
-        }
-    });
-
-    function getProductTypeSource(inputElement) {
-        const query = inputElement.value.toLowerCase();
+        } else { dropdown.classList.remove('show'); }
+    };
+    
+    // <<< HÀM ĐÃ SỬA LỖI ĐỂ LỌC THEO PRINTER >>>
+    const getProductTypeSource = (input) => {
+        const query = input.value.toLowerCase();
         const selectedPrinter = printerSelect.value;
-        const productNames = [...new Set([...fulfillState.productMap.keys()].map(k => k.split('|')[1]))];
-
+        const productNames = [...new Set([...fulfillState.productMap.keys()]
+            .filter(key => key.startsWith(`${selectedPrinter}|`))
+            .map(key => key.split('|')[1])
+        )];
         return productNames
             .filter(name => name.toLowerCase().includes(query))
             .map(name => ({
                 displayText: name,
-                onSelect: (input) => {
-                    const card = input.closest('.line-item-card');
-                    input.value = name;
+                onSelect: (inputEl) => {
+                    const card = inputEl.closest('.line-item-card');
+                    inputEl.value = name;
                     card.querySelector('.selected-product-name').value = name;
-                    
                     const variantInput = card.querySelector('.variant-input');
                     variantInput.disabled = false;
                     variantInput.placeholder = 'Gõ để tìm biến thể...';
-                    variantInput.value = '';
-                    card.querySelector('.variant-sku-input').value = '';
+                    variantInput.value = ''; card.querySelector('.variant-sku-input').value = ''; variantInput.focus();
                 }
             }));
-    }
-
-    function getVariantSource(inputElement) {
-        const card = inputElement.closest('.line-item-card');
+    };
+    
+    const getVariantSource = (input) => {
+        const card = input.closest('.line-item-card');
         const productName = card.querySelector('.selected-product-name').value;
         if (!productName) return [];
-
-        const query = inputElement.value.toLowerCase();
+        const query = input.value.toLowerCase();
         const selectedPrinter = printerSelect.value;
         const variants = fulfillState.productMap.get(`${selectedPrinter}|${productName}`) || [];
+        return variants.filter(v => v.searchText.includes(query)).map(variant => ({
+            displayText: variant.displayText,
+            onSelect: (inputEl) => {
+                inputEl.value = variant.displayText;
+                card.querySelector('.variant-sku-input').value = variant.sku;
+            }
+        }));
+    };
 
-        return variants
-            .filter(v => v.searchText.includes(query))
-            .map(variant => ({
-                displayText: variant.displayText,
-                onSelect: (input) => {
-                    input.value = variant.displayText;
-                    card.querySelector('.variant-sku-input').value = variant.sku;
-                }
-            }));
-    }
-
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.autocomplete-container')) {
-            document.querySelectorAll('.autocomplete-items').forEach(d => d.classList.remove('show'));
-        }
-    });
     addProductBtn.addEventListener('click', addProductCard);
+    
+    // <<< EVENT LISTENER ĐÃ SỬA LỖI ĐỂ RESET KHI ĐỔI PRINTER >>>
     printerSelect.addEventListener('change', () => {
+        showToast('Printer đã thay đổi, vui lòng chọn lại sản phẩm và biến thể.', 'warning');
         lineItemsContainer.innerHTML = '';
         addProductCard();
     });
+
+    designSearchBtn.addEventListener('click', () => renderDesigns(designSearchInput.value));
+    designSearchInput.addEventListener('keyup', e => { if (e.key === 'Enter') renderDesigns(designSearchInput.value) });
+
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.autocomplete-container')) document.querySelectorAll('.autocomplete-items.show').forEach(d => d.classList.remove('show'));
+    });
+    lineItemsContainer.addEventListener('input', e => {
+        if (e.target.classList.contains('product-type-input')) handleAutocomplete(e.target, getProductTypeSource);
+        if (e.target.classList.contains('variant-input')) handleAutocomplete(e.target, getVariantSource);
+    });
     lineItemsContainer.addEventListener('click', e => {
-        if (e.target.classList.contains('remove-product-btn')) { e.target.closest('.line-item-card').remove(); }
-        if (e.target.classList.contains('select-design-btn')) {
-            fulfillState.currentTarget.input = e.target.dataset.targetInput;
-            fulfillState.currentTarget.thumb = e.target.dataset.targetThumb;
+        const removeBtn = e.target.closest('.remove-product-btn');
+        const selectDesignBtn = e.target.closest('.select-design-btn');
+        if (removeBtn) removeBtn.closest('.line-item-card').remove();
+        if (selectDesignBtn) {
+            fulfillState.currentTarget = { input: selectDesignBtn.dataset.targetInput, thumb: selectDesignBtn.dataset.targetThumb };
             designSelectModal.show();
         }
-        if (e.target.classList.contains('design-thumbnail')) {
-            document.getElementById('viewDesignImage').src = e.target.src;
-            viewDesignModal.show();
-        }
     });
-    designSearchBtn.addEventListener('click', () => renderDesigns(designSearchInput.value));
-    designSearchInput.addEventListener('keyup', (e) => { if(e.key === 'Enter') renderDesigns(designSearchInput.value); });
-    
-    // === SỰ KIỆN ĐÃ SỬA ĐỔI: click trên designGrid ===
     designGrid.addEventListener('click', e => {
-        // Ưu tiên 1: Kiểm tra nếu nút xem nhanh được nhấp
         const viewBtn = e.target.closest('.view-design-btn');
         if (viewBtn) {
             document.getElementById('viewDesignImage').src = viewBtn.dataset.viewUrl;
             viewDesignModal.show();
-            return; // Dừng xử lý để không chạy logic chọn design
+            return;
         }
-
-        // Ưu tiên 2: Nếu không phải nút xem nhanh, xử lý logic chọn design như cũ
         const card = e.target.closest('.card[data-design-url]');
         if (card && fulfillState.currentTarget.input) {
             document.getElementById(fulfillState.currentTarget.input).value = card.dataset.designUrl;
             document.getElementById(fulfillState.currentTarget.thumb).innerHTML = `<img src="${card.dataset.designUrl}" class="design-thumbnail"/>`;
             designSelectModal.hide();
-            fulfillState.currentTarget = {};
         }
     });
 
@@ -416,84 +279,44 @@ window.initFulfillMangotee = async (orderId) => {
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang gửi...';
         try {
             const order_payload = {
-                order_id: document.getElementById('mangotee-order-id').value,
-                facility_code: document.getElementById('mangotee-facility-code').value,
-                seller: "",
-                shipping_method: "standard",
-                order_source: "API",
-                FirstName: document.getElementById('shipping-first-name').value.trim(),
-                LastName: document.getElementById('shipping-last-name').value.trim(),
-                AddressLine1: document.getElementById('shipping-address1').value.trim(),
-                AddressLine2: "",
-                City: document.getElementById('shipping-city').value.trim(),
-                StateOrRegion: document.getElementById('shipping-state').value.trim(),
-                Zip: document.getElementById('shipping-zip').value.trim(),
-                CountryCode: document.getElementById('shipping-country').value.trim(),
-                Phone: document.getElementById('shipping-phone').value.trim(),
-                items: []
+                order_id: document.getElementById('mangotee-order-id').value, facility_code: document.getElementById('mangotee-facility-code').value,
+                seller: "", shipping_method: "standard", order_source: "API",
+                FirstName: document.getElementById('shipping-first-name').value.trim(), LastName: document.getElementById('shipping-last-name').value.trim(),
+                AddressLine1: document.getElementById('shipping-address1').value.trim(), AddressLine2: document.getElementById('shipping-address2').value.trim(),
+                City: document.getElementById('shipping-city').value.trim(), StateOrRegion: document.getElementById('shipping-state').value.trim(),
+                Zip: document.getElementById('shipping-zip').value.trim(), CountryCode: document.getElementById('shipping-country').value.trim(),
+                Phone: document.getElementById('shipping-phone').value.trim(), items: []
             };
-
-            const selectedPrinter = document.getElementById('mangotee-printer-select').value;
-
-            for (const card of document.querySelectorAll('.line-item-card')) {
-                const variantSku = card.querySelector('.variant-sku-input').value;
-                const quantity = card.querySelector('.mangotee-quantity-input').value;
-                const frontDesign = card.querySelector('[id^="front-input-"]').value;
-                const backDesign = card.querySelector('[id^="back-input-"]').value;
-
-                if (!variantSku) throw new Error("Vui lòng tìm và chọn một sản phẩm và biến thể hợp lệ.");
-                if (!frontDesign) throw new Error("Vui lòng chọn design mặt trước cho sản phẩm.");
-                
-                let printAreasData = [];
-                if (selectedPrinter === 'VNEMB') {
-                    printAreasData = [{"area": "center_chest", "url": frontDesign, "tech": "normal"}];
-                }
-
+            const cards = document.querySelectorAll('.line-item-card');
+            if (cards.length === 0) throw new Error("Bạn phải thêm ít nhất một sản phẩm.");
+            for (const card of cards) {
+                const sku = card.querySelector('.variant-sku-input').value;
+                const frontUrl = card.querySelector('[id^="front-input-"]').value;
+                if (!sku || !frontUrl) throw new Error("Vui lòng chọn đầy đủ sản phẩm, biến thể và design mặt trước.");
                 order_payload.items.push({
-                    sku: variantSku,
-                    quantity: String(quantity),
-                    front_url: frontDesign,
-                    mockup_front_url: "",
-                    back_url: backDesign || "",
-                    mockup_back_url: "",
-                    order_item_id: "",
-                    left_sleeve: "",
-                    right_sleeve: "",
-                    neck_label: "",
-                    print_areas: printAreasData,
-                    order_type: "",
-                    production_config: ""
+                    sku: sku, quantity: String(card.querySelector('.mangotee-quantity-input').value), front_url: frontUrl, mockup_front_url: "",
+                    back_url: card.querySelector('[id^="back-input-"]').value || "", mockup_back_url: "", order_item_id: "", left_sleeve: "",
+                    right_sleeve: "", neck_label: "", print_areas: printerSelect.value === 'VNEMB' ? [{"area": "center_chest", "url": frontUrl, "tech": "normal"}] : [],
+                    order_type: "", production_config: ""
                 });
             }
-            if (order_payload.items.length === 0) throw new Error("Bạn phải thêm ít nhất một sản phẩm.");
-
-            const finalDataToServer = {
-                printer: document.getElementById('mangotee-printer-select').value,
-                payload: order_payload
-            };
-            
-            console.log('DEBUG PAYLOAD TO SERVER:', JSON.stringify(finalDataToServer, null, 2));
-
             const res = await fetch(`/orders/process_fulfillment/${orderId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(finalDataToServer)
+                body: JSON.stringify({ provider: 'mangotee', printer: printerSelect.value, payload: order_payload })
             });
-
             const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Lỗi khi gửi đơn hàng.');
-            
+            if (!res.ok || !data.success) throw new Error(data.message || 'Lỗi gửi đơn hàng.');
             showToast(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('fulfillModal')).hide();
             setTimeout(() => window.location.reload(), 1500);
-
         } catch (error) {
             showToast(error.message, 'danger');
+        } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="bi bi-send-fill"></i> Gửi đơn hàng';
         }
     });
-
     initialize();
 };
 </script>
