@@ -1,8 +1,8 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
     /* CSS cho modal và các thành phần */
-    .design-thumbnail-container{width:42px;height:42px;display:flex;align-items:center;justify-content:center}
-    .design-thumbnail{width:38px;height:38px;object-fit:contain;cursor:pointer;border:1px solid #dee2e6;border-radius:4px;background-color:#f8f9fa}
+    .design-thumbnail-container{position:relative;width:42px;height:42px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+    .design-thumbnail{width:38px;height:38px;object-fit:contain;border:1px solid #dee2e6;border-radius:4px;background-color:#f8f9fa}
     .autocomplete-container{position:relative}
     .autocomplete-items{position:absolute;border:1px solid #dee2e6;border-top:none;z-index:1060;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background-color:white}
     .autocomplete-items .dropdown-item{cursor:pointer;white-space:normal;}
@@ -15,6 +15,26 @@
     .view-design-btn:hover{background-color:rgba(0,0,0,0.8)}
     #viewDesignModal .modal-content{background-color:rgba(0,0,0,0.2);border:none;box-shadow:none}
     #viewDesignModal .modal-header{position:absolute;top:-1rem;right:-1rem;z-index:1061;border-bottom:0}
+    .view-selected-thumb-btn {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: rgba(0,0,0,0.5);
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.2s ease-in-out;
+        pointer-events: none;
+    }
+    .design-thumbnail-container:hover .view-selected-thumb-btn {
+        opacity: 1;
+    }
 </style>
 
 <div class="modal-header">
@@ -33,20 +53,30 @@
     <form id="mangotee-form" class="d-none">
         <h6>1. Thông tin giao hàng</h6>
         <div class="row">
-            <div class="col-md-3 mb-2"><label for="shipping-first-name" class="form-label">Họ & Tên đệm</label><input type="text" class="form-control" id="shipping-first-name" required></div>
-            <div class="col-md-3 mb-2"><label for="shipping-last-name" class="form-label">Tên</label><input type="text" class="form-control" id="shipping-last-name" required></div>
+            <div class="col-md-3 mb-2"><label for="shipping-first-name" class="form-label">First Name</label><input type="text" class="form-control" id="shipping-first-name" required></div>
+            <div class="col-md-3 mb-2"><label for="shipping-last-name" class="form-label">Last Name</label><input type="text" class="form-control" id="shipping-last-name" required></div>
             <div class="col-md-6 mb-2"><label for="shipping-email" class="form-label">Email</label><input type="email" class="form-control" id="shipping-email"></div>
-            <div class="col-md-6 mb-2"><label for="shipping-phone" class="form-label">Số điện thoại</label><input type="text" class="form-control" id="shipping-phone" required></div>
-            <div class="col-md-6 mb-2"><label for="shipping-address1" class="form-label">Địa chỉ 1</label><input type="text" class="form-control" id="shipping-address1" required></div>
-            <div class="col-md-6 mb-2"><label for="shipping-address2" class="form-label">Địa chỉ 2 (tùy chọn)</label><input type="text" class="form-control" id="shipping-address2"></div>
-            <div class="col-md-4 mb-2"><label for="shipping-city" class="form-label">Thành phố</label><input type="text" class="form-control" id="shipping-city" required></div>
-            <div class="col-md-4 mb-2"><label for="shipping-state" class="form-label">Bang/Tỉnh</label><input type="text" class="form-control" id="shipping-state" required></div>
-            <div class="col-md-4 mb-2"><label for="shipping-zip" class="form-label">Mã ZIP/Bưu điện</label><input type="text" class="form-control" id="shipping-zip" required></div>
-            <div class="col-md-4 mb-3"><label for="shipping-country" class="form-label">Quốc gia</label><input type="text" class="form-control" id="shipping-country" value="US" required></div>
+            <div class="col-md-6 mb-2"><label for="shipping-phone" class="form-label">Phone</label><input type="text" class="form-control" id="shipping-phone" required></div>
+            <div class="col-md-6 mb-2"><label for="shipping-address1" class="form-label">Address Line 1</label><input type="text" class="form-control" id="shipping-address1" required></div>
+            <div class="col-md-6 mb-2"><label for="shipping-address2" class="form-label">Address Line 2 (optional)</label><input type="text" class="form-control" id="shipping-address2"></div>
+            <div class="col-md-4 mb-2"><label for="shipping-city" class="form-label">City</label><input type="text" class="form-control" id="shipping-city" required></div>
+            <div class="col-md-4 mb-2"><label for="shipping-state" class="form-label">State</label><input type="text" class="form-control" id="shipping-state" required></div>
+            <div class="col-md-4 mb-2"><label for="shipping-zip" class="form-label">Zip</label><input type="text" class="form-control" id="shipping-zip" required></div>
+            <div class="col-md-4 mb-3"><label for="shipping-country" class="form-label">Country Code</label><input type="text" class="form-control" id="shipping-country" value="US" required></div>
+            <div class="col-md-4 mb-3">
+                <label for="shipping-method-select" class="form-label">Shipping Method</label>
+                <select class="form-select" id="shipping-method-select" required>
+                    <option value="standard" selected>Standard</option>
+                    <option value="priority">Priority</option>
+                    <option value="express">Express</option>
+                    <option value="rush">Rush</option>
+                    <option value="expedite">Expedite</option>
+                </select>
+            </div>
         </div>
         <hr>
         <div class="row">
-            <div class="col-md-6 mb-3"><label for="mangotee-order-id" class="form-label">Mã đơn hàng NCC</label><input type="text" class="form-control" id="mangotee-order-id" required></div>
+            <div class="col-md-6 mb-3"><label for="mangotee-order-id" class="form-label">ID Order FF</label><input type="text" class="form-control" id="mangotee-order-id" required></div>
             <div class="col-md-3 mb-3"><label for="mangotee-printer-select" class="form-label">Printer</label><select class="form-select" id="mangotee-printer-select" required><option value="US1" selected>US1</option><option value="FASTUS">FASTUS</option><option value="TIKTOK">TIKTOK</option><option value="VNEMB">VNEMB</option><option value="USEMB">USEMB</option></select></div>
             <div class="col-md-3 mb-3"><label for="mangotee-facility-code" class="form-label">Facility Code</label><select class="form-select" id="mangotee-facility-code"><option value="" selected>(Để trống)</option><option value="SJ">SJ</option><option value="VA">VA</option><option value="TX">TX</option></select></div>
         </div>
@@ -82,9 +112,6 @@ window.initFulfillMangotee = (orderId) => {
     const designSearchInput = document.getElementById('design-search-input');
     const designSearchBtn = document.getElementById('design-search-btn');
 
-    // SỬA LỖI: Không cần định nghĩa lại showToast, chỉ cần gọi hàm toàn cục
-    // có sẵn từ manage_orders.html.
-
     const populateShippingInfo = (data) => {
         if (!data) return;
         const shipping = data.shipping_address || {};
@@ -99,7 +126,15 @@ window.initFulfillMangotee = (orderId) => {
         document.getElementById('shipping-state').value = shipping.state || '';
         document.getElementById('shipping-zip').value = shipping.postcode || '';
         document.getElementById('shipping-country').value = shipping.country || 'US';
-        document.getElementById('mangotee-order-id').value = data.wc_order_id ? `WC-${data.wc_order_id}` : '';
+        
+        // <<< SỬA LỖI THEO YÊU CẦU: Cấu trúc lại mã đơn hàng NCC >>>
+        if (data.store_name && data.wc_order_id) {
+            // Loại bỏ khoảng trắng khỏi tên store và nối với mã đơn
+            const storeNameFormatted = data.store_name.replace(/\s+/g, '');
+            document.getElementById('mangotee-order-id').value = `${storeNameFormatted}-${data.wc_order_id}`;
+        } else {
+            document.getElementById('mangotee-order-id').value = data.wc_order_id ? `WC-${data.wc_order_id}` : '';
+        }
     };
 
     const renderDesigns = (query = '') => {
@@ -201,13 +236,10 @@ window.initFulfillMangotee = (orderId) => {
     };
 
     addProductBtn.addEventListener('click', addProductCard);
-    printerSelect.addEventListener('change', () => { showToast('Printer đã thay đổi, vui lòng chọn lại sản phẩm.', 'warning'); lineItemsContainer.innerHTML = ''; addProductCard(); });
+    printerSelect.addEventListener('change', () => { window.showToast('Printer đã thay đổi, vui lòng chọn lại sản phẩm.', 'warning'); lineItemsContainer.innerHTML = ''; addProductCard(); });
     designSearchBtn.addEventListener('click', () => renderDesigns(designSearchInput.value));
     designSearchInput.addEventListener('keyup', e => { if (e.key === 'Enter') renderDesigns(e.target.value) });
-
     document.addEventListener('click', e => { if (!e.target.closest('.autocomplete-container')) document.querySelectorAll('.autocomplete-items.show').forEach(d => d.classList.remove('show')); });
-    
-    // SỬA LỖI: Thêm listener 'focusin' để xổ autocomplete khi click
     lineItemsContainer.addEventListener('focusin', e => {
         if (e.target.classList.contains('product-type-input')) handleAutocomplete(e.target, getProductTypeSource);
         if (e.target.classList.contains('variant-input')) handleAutocomplete(e.target, getVariantSource);
@@ -219,10 +251,15 @@ window.initFulfillMangotee = (orderId) => {
     lineItemsContainer.addEventListener('click', e => {
         const removeBtn = e.target.closest('.remove-product-btn');
         const selectDesignBtn = e.target.closest('.select-design-btn');
+        const thumbContainer = e.target.closest('.design-thumbnail-container');
         if (removeBtn) removeBtn.closest('.line-item-card').remove();
         if (selectDesignBtn) {
             fulfillState.currentTarget = { input: selectDesignBtn.dataset.targetInput, thumb: selectDesignBtn.dataset.targetThumb };
             designSelectModal.show();
+        }
+        if (thumbContainer && thumbContainer.dataset.viewUrl) {
+            document.getElementById('viewDesignImage').src = thumbContainer.dataset.viewUrl;
+            viewDesignModal.show();
         }
     });
     designGrid.addEventListener('click', e => {
@@ -230,8 +267,12 @@ window.initFulfillMangotee = (orderId) => {
         if (viewBtn) { document.getElementById('viewDesignImage').src = viewBtn.dataset.viewUrl; viewDesignModal.show(); return; }
         const card = e.target.closest('.card[data-design-url]');
         if (card && fulfillState.currentTarget.input) {
+            const thumbEl = document.getElementById(fulfillState.currentTarget.thumb);
             document.getElementById(fulfillState.currentTarget.input).value = card.dataset.designUrl;
-            document.getElementById(fulfillState.currentTarget.thumb).innerHTML = `<img src="${card.dataset.designUrl}" class="design-thumbnail"/>`;
+            thumbEl.dataset.viewUrl = card.dataset.designUrl;
+            thumbEl.innerHTML = `
+                <img src="${card.dataset.designUrl}" class="design-thumbnail"/>
+                <span class="view-selected-thumb-btn"><i class="bi bi-eye-fill"></i></span>`;
             designSelectModal.hide();
         }
     });
@@ -243,7 +284,7 @@ window.initFulfillMangotee = (orderId) => {
         try {
             const order_payload = {
                 order_id: document.getElementById('mangotee-order-id').value, facility_code: document.getElementById('mangotee-facility-code').value,
-                seller: "", shipping_method: "standard", order_source: "API",
+                seller: "", shipping_method: document.getElementById('shipping-method-select').value, order_source: "API",
                 FirstName: document.getElementById('shipping-first-name').value.trim(), LastName: document.getElementById('shipping-last-name').value.trim(),
                 AddressLine1: document.getElementById('shipping-address1').value.trim(), AddressLine2: document.getElementById('shipping-address2').value.trim(),
                 City: document.getElementById('shipping-city').value.trim(), StateOrRegion: document.getElementById('shipping-state').value.trim(),
@@ -270,13 +311,11 @@ window.initFulfillMangotee = (orderId) => {
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.message || 'Lỗi gửi đơn hàng.');
-            // Gọi hàm showToast toàn cục
-            showToast(data.message, 'success');
+            window.showToast(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('fulfillModal')).hide();
             setTimeout(() => window.location.reload(), 1500);
         } catch (error) {
-            // Gọi hàm showToast toàn cục
-            showToast(error.message, 'danger');
+            window.showToast(error.message, 'danger');
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="bi bi-send-fill"></i> Gửi đơn hàng';
